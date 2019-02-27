@@ -1,4 +1,4 @@
-from mmodels import mvgg
+from mmodels import mvgg,mresnet
 from torchvision import models
 import torch.nn as nn
 import torch
@@ -30,13 +30,15 @@ def get_model_ft(name, pretrained=True, num=2):
                                             )
 
     elif name == "resnet50":
-        model_ft = models.resnet50(pretrained=pretrained)
-        num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Sequential(nn.Linear(num_ftrs, 4096),
-                                    nn.ReLU(True),
-                                    nn.Dropout(),
-                                    nn.Linear(4096, side*side*(num*5+20)),
-                                    )
+        model_ft = mresnet.resnet50(pretrained=False,num=num,side=side,num_classes=classes)
+        resnet = models.resnet50(pretrained=True)
+        org_dict = resnet.state_dict()
+        ft_dict = model_ft.state_dict()
+        for k in org_dict.keys():
+            if k in ft_dict.keys() and not k.startswith('fc'):
+                ft_dict[k] = org_dict[k]
+        model_ft.load_state_dict(ft_dict)
+
     else:
         return None
 

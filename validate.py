@@ -274,16 +274,16 @@ def test(model_name, image_name, weight, mode=0, num=2):
 #         for j in range(classes):
 #             if probs[i][j] > 0:
 #                 fps[j].write('%s %f %f %f %f %f\n' % (imgid, probs[i][j], xmin, ymin, xmax, ymax))
-def eval_func(model, id, in_buff, out_buff):
-    ins = in_buff[id]
+def eval_func(model, id, s, l):
+    # ins = in_buff[id]
     boxes = np.zeros((side * side * num, 4))
     probs = np.zeros((side * side * num, classes))
 
-    for i in ins:
-        img = cv2.imread(i)
+    for i in range(s, s+l):
+        print("th-%d, [%d/%d]" % (id, i+1, len(in_buff)))
+        img = cv2.imread(in_buff[i])
         h, w, _ = img.shape
         imgid = i.split('/')[-1].split('.')[0]
-        print("thread %d, %s"%(id,imgid))
         img = img_trans(img)
         pred = model(img)
         # print("get boxes")
@@ -297,25 +297,34 @@ def eval_func(model, id, in_buff, out_buff):
             if ymax > h: ymax = h
             for j in range(classes):
                 if probs[i][j] > 0:
-                    out_buff[id].append('%d %s %f %f %f %f %f' % (j, imgid, probs[i][j], xmin, ymin, xmax, ymax))
+                    locks[j].acquire()
+                    fps[j].write('%s %f %f %f %f %f' % (j, imgid, probs[i][j], xmin, ymin, xmax, ymax))
+                    locks[j].release()
                     # print('[%d] %s %f %f %f %f %f' % (id, imgid, probs[i][j], xmin, ymin, xmax, ymax))
 
 
 class EvalThread (threading.Thread):
-    def __init__(self, threadID, model, in_buff, out_buff, name=None):
-        threading.Thread.__init__(self)
+    def __init__(self, threadID, model, s, l, name=None):
+        super(EvalThread, self).__init__()
         self.threadID = threadID
         self.name = name
-        self.in_buff = in_buff
-        self.out_buff = out_buff
         self.model = model
+        self.s = s
+        self.l = l
         # self.probs = np.zeros((side * side * num, classes))
         # self.boxes = np.zeros((side * side * num, 4))
 
     def run(self):
         print("Starting thread %d" % self.threadID)
-        eval_func(self.model, self.threadID, self.in_buff, self.out_buff)
+        eval_func(self.model, self.threadID, self.s, self.l)
         print('thread %d over' % self.threadID)
+
+
+# for thread
+in_buff = []
+# out_buff = []
+fps = []
+locks = []
 
 
 def eval_out(test_file, model_name, weight, mode=0, num=2):
@@ -324,37 +333,41 @@ def eval_out(test_file, model_name, weight, mode=0, num=2):
         lines = [line.strip() for line in lines]
         lines = [line for line in lines if len(line)>0]
 
-    model = load_model(model_name,weight,mode,num)
+    model = load_model(model_name, weight, mode,num)
     if not os.path.exists('results'):
         os.mkdir('results')
     base = 'results/comp4_det_test'
-    fps = []
+    # fps = []
     for k in range(classes):
         fps.append(open('%s_%s' % (base, voc_class_names[k]), 'w'))
 
-    use_thread = False
+    use_thread = True
 
     if use_thread:
-        nThreads = 4
-        tl = len(lines)
+        nThreads = 8
+        in_buff = lines.copy()
+        tl = len(in_buff)
         print(tl)
         n = tl // nThreads
         r = tl % nThreads
-        in_buff = [lines[i*n:(i+1)*n] for i in range(nThreads)]
-        if r > 0:
-            in_buff[0].append(lines[-r:])
-        print(len(in_buff[0]))
-        out_buff = [[]]*nThreads
+        # out_buff = [[]]*nThreads
         threads = []
+        for k in range(classes):
+            locks.append(threading.Lock())
         since = time.time()
         for i in range(nThreads):
-            thread = EvalThread(i, model, in_buff, out_buff)
+            if i < nThreads-1:
+                thread = EvalThread(i, model, i*n, n)
+            else:
+                thread = EvalThread(i, model, i*n, n+r)
             thread.start()
             threads.append(thread)
 
         for t in threads:
             t.join()
         print("all get")
+
+
         # for out in out_buff:
         #     for l in out:
         #         pos = l.find(' ')

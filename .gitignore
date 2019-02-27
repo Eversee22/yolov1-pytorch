@@ -3,6 +3,7 @@ local/
 __pycache__/
 results/
 utils/
+log/
 *.txt
 .idea
 *.pyc
