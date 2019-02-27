@@ -1,0 +1,6 @@
+backup/
+local/
+__pycache__/
+results/
+utils/
+*.txt

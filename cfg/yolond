@@ -1,0 +1,16 @@
+side = 7
+num = 2
+classes = 20
+sqrt = 1
+noobj_scale = .5
+coord_scale = 5.
+object_scale = 1.
+class_scale = 1.
+batch_size = 16
+inp_size = 448
+initial_lr = 0.001
+momentum = 0.9
+weight_decay = 5e-4
+steps = [3, 4]
+lr_scale = [0.1, 0.1]
+num_epochs = 5
