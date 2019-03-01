@@ -6,11 +6,11 @@ from util import readcfg
 
 d = readcfg('cfg/yolond')
 side = int(d['side'])
-# num = int(d['num'])
+num = int(d['num'])
 classes = int(d['classes'])
 
 
-def get_model_ft(name, pretrained=True, num=2):
+def get_model_ft(name, pretrained=True):
 
     if name == "vgg16":
         model_ft = mvgg.vgg16(pretrained=pretrained, side=side, num=num, classes=classes)
@@ -30,14 +30,15 @@ def get_model_ft(name, pretrained=True, num=2):
                                             )
 
     elif name == "resnet50":
-        model_ft = mresnet.resnet50(pretrained=False,num=num,side=side,num_classes=classes)
-        resnet = models.resnet50(pretrained=True)
-        org_dict = resnet.state_dict()
-        ft_dict = model_ft.state_dict()
-        for k in org_dict.keys():
-            if k in ft_dict.keys() and not k.startswith('fc'):
-                ft_dict[k] = org_dict[k]
-        model_ft.load_state_dict(ft_dict)
+        model_ft = mresnet.resnet50(num=num,side=side,num_classes=classes)
+        if pretrained:
+            resnet = models.resnet50(pretrained=True)
+            org_dict = resnet.state_dict()
+            ft_dict = model_ft.state_dict()
+            for k in org_dict.keys():
+                if k in ft_dict.keys() and not k.startswith('fc'):
+                    ft_dict[k] = org_dict[k]
+            model_ft.load_state_dict(ft_dict)
 
     else:
         return None
@@ -45,13 +46,12 @@ def get_model_ft(name, pretrained=True, num=2):
     return model_ft
 
 
-def load_model_trd(name, weight, mode=0):
+def load_model_trd(name, weight, mode=1):
     model = get_model_ft(name, pretrained=False)
     assert model is not None
 
     if mode == 1:
-        checkpoint = torch.load(weight)
-        model.load_state_dict(checkpoint['model'])
+        model.load_state_dict(torch.load(weight)['model'])
     else:
         model.load_state_dict(torch.load(weight))
 

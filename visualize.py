@@ -10,34 +10,6 @@ class Visualizer(object):
         self.env = env
         self.log_text = ''
 
-    # def plot_train_val(self, step=5, loss_train=None, loss_val=None):
-    #     '''
-    #     plot val loss and train loss in one figure
-    #     '''
-    #     x = self.index.get('train_val', 0)
-    #
-    #     if x == 0:
-    #         loss = loss_train if loss_train is not None else loss_val
-    #         win_y = np.column_stack((loss, loss))
-    #         win_x = np.column_stack((x, x))
-    #         self.win = self.vis.line(Y=win_y, X=win_x, env=self.env)
-    #         self.index['train_val'] = x + 1
-    #         return
-    #
-    #     if loss_train is not None:
-    #         self.vis.line(Y=np.array([loss_train]), X=np.array([x]),
-    #                       win=self.win,
-    #                       name='1',
-    #                       update='append',
-    #                       env=self.env)
-    #         self.index['train_val'] = x + step
-    #     else:
-    #         self.vis.line(Y=np.array([loss_val]), X=np.array([x]),
-    #                       win=self.win,
-    #                       name='2',
-    #                       update='append',
-    #                       env=self.env)
-
     def plot_one(self, loss, name, step=1):
         x = self.index.get(name, 0)
         self.vis.line(Y=np.array([loss]), X=np.array([x]),

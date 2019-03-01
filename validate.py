@@ -2,16 +2,14 @@ from ftd_model import get_model_ft
 import torch
 import cv2
 import numpy as np
-from util import imwrite, convert_box
-# import matplotlib.pyplot as plt
+from util import imwrite, convert_box,prep_image
 import argparse
 import sys
 from util import load_classes, readcfg
 import _pickle as pkl
 from util import bbox_iou2
 import os
-import time
-import threading
+from tqdm import tqdm
 
 d = readcfg('cfg/yolond')
 side = int(d['side'])
@@ -19,7 +17,7 @@ num = int(d['num'])
 classes = int(d['classes'])
 inp_size = int(d['inp_size'])
 
-colors = pkl.load(open('pallete', 'rb'))
+# colors = pkl.load(open('pallete', 'rb'))
 voc_class_names = load_classes('data/voc.names')
 
 
@@ -58,7 +56,7 @@ def do_nms_1(boxes,probs,thres=0.5):
         inter = w*h
 
         ovr = inter/(areas[i]+areas[order[1:]]-inter)
-        print(ovr)
+        # print(ovr)
         ids = (ovr <= thres).nonzero().squeeze()
 
         if ids.numel() == 0:
@@ -68,7 +66,7 @@ def do_nms_1(boxes,probs,thres=0.5):
     return torch.LongTensor(keep)
 
 
-def get_detection_boxes_1(pred, prob_thres,nms=True):
+def get_detection_boxes_1(pred, prob_thres,nms_thresh, nms=True):
     """
     pred: (1,side,side,(num*5+20))
     return: probs,boxes,cls
@@ -117,7 +115,7 @@ def get_detection_boxes_1(pred, prob_thres,nms=True):
         cls_indices = torch.cat(cls_indices, 0)  # (n,)
 
     if nms:
-        keep = do_nms_1(boxes, probs, 0.4)
+        keep = do_nms_1(boxes, probs, nms_thresh)
         return boxes[keep], probs[keep], cls_indices[keep]
     else:
         return boxes, probs, cls_indices
@@ -141,9 +139,11 @@ def do_nms(boxes, probs, thresh=0.4):
                 iou = bbox_iou2(box_a, box_b)
                 if iou > thresh:
                     probs[order[j]][k] = 0
+                # else:
+                #     print(iou)
 
 
-def get_detection_boxes(pred, prob_thresh, boxes, probs, nms=True):
+def get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
     """
     pred: (1, side, side, num*5+20)
     return: probs, boxes
@@ -168,18 +168,18 @@ def get_detection_boxes(pred, prob_thresh, boxes, probs, nms=True):
                 probs[g*num+k][z] = prob if prob > prob_thresh else 0
 
     if nms:
-        do_nms(boxes, probs)
+        do_nms(boxes, probs, nms_thresh)
 
     # return boxes, probs
 
 
-def load_model(model_name, weight, mode, num):
-    model = get_model_ft(model_name, False, num=num)
+def load_model(model_name, weight, mode):
+    model = get_model_ft(model_name, False)
     assert model is not None
 
     if mode == 1:
-        checkpoint = torch.load(weight)
-        model.load_state_dict(checkpoint['model'])
+        # checkpoint = torch.load(weight)
+        model.load_state_dict(torch.load(weight)['model'])
     else:
         model.load_state_dict(torch.load(weight))
     model.eval()
@@ -201,215 +201,197 @@ def img_trans(img):
     return img
 
 
-# def convert_box(box, h, w):
-#     xmin, ymin, xmax, ymax = int(box[0]*w), int(box[1]*h), int(box[2]*w), int(box[3]*h)
-#
-#     if xmin < 0: xmin = 0
-#     if ymin < 0: ymin = 0
-#     if xmax > w-1: xmax = w-1
-#     if ymax > h-1: ymax = h-1
-#
-#     return xmin, ymin, xmax, ymax
+def predict_gpu_1(model_name, image_name, weight, mode=1):
+    root_dir = '/home/blacksun2/github/darknet-2016-11-22/VOCdevkit/AllImages'
+    result = []
+    model = load_model(model_name, weight, mode)
+    model.cuda()
+    image = cv2.imread(os.path.join(root_dir, image_name))
+    h, w, _ = image.shape
+    img = img_trans(image)
+    img = img.cuda()
+    with torch.no_grad():
+        pred = model(img)
+    # pred = pred.cpu()
+
+    probs = np.zeros((side * side * num, classes))
+    boxes = np.zeros((side * side * num, 4))
+    get_detection_boxes(pred, 0.1, 0.5, boxes, probs)
+
+    for i in range(probs.shape[0]):
+        box = boxes[i]
+        x1 = int(box[0] * w)
+        x2 = int(box[2] * w)
+        y1 = int(box[1] * h)
+        y2 = int(box[3] * h)
+        if x1<0:x1=0
+        if x2>w:x2=w
+        if y1<0:y1=0
+        if y2>h:y2=h
+        for j in range(classes):
+            if probs[i,j] > 0:
+                result.append([(x1,y1),(x2,y2),voc_class_names[j],image_name,probs[i,j]])
+
+    return result
 
 
-def test(model_name, image_name, weight, mode=0, num=2):
+def print_yolo_detections(test_file, model_name, weight,use_gpu=True):
+    with open(test_file) as f:
+        lines = f.readlines()
+        lines = [line.strip() for line in lines]
+
+    model = load_model(model_name, weight, 1)
+    if use_gpu:
+        model.cuda()
+    if not os.path.exists('results'):
+        os.mkdir('results')
+    base = 'results/comp4_det_test'
+    fps = []
+    for k in range(classes):
+        fps.append(open('%s_%s' % (base, voc_class_names[k]), 'w'))
+
+    for imp in tqdm(lines):
+        imgid = imp.split('/')[-1].split('.')[0]
+        # print(imgid)
+        img = cv2.imread(imp)
+        h, w, _ = img.shape
+        img = img_trans(img)
+        if use_gpu:
+            img = img.cuda()
+        with torch.no_grad():
+            pred = model(img)
+
+        # pred = pred.cpu()
+        probs = np.zeros((side * side * num, classes))
+        boxes = np.zeros((side * side * num, 4))
+        get_detection_boxes(pred, 0.1, 0.5, boxes, probs)
+        for i in range(probs.shape[0]):
+            box = boxes[i]
+            x1 = int(box[0] * w)
+            x2 = int(box[2] * w)
+            y1 = int(box[1] * h)
+            y2 = int(box[3] * h)
+            if x1 < 0: x1 = 0
+            if x2 > w: x2 = w
+            if y1 < 0: y1 = 0
+            if y2 > h: y2 = h
+            for j in range(classes):
+                if probs[i, j] > 0:
+                    fps[j].write('%s %f %f %f %f %f\n' % (imgid, probs[i][j], x1, y1, x2, y2))
+            # fps[j].flush()
+
+    for f in fps:
+        f.close()
+
+
+def predict_gpu_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
     print('load weight')
-    model = load_model(model_name,weight,mode,num)
+    model = load_model(model_name, weight, mode)
+    if use_gpu:
+        model.cuda()
+    print("detecting")
+    image = cv2.imread(image_name)
+    img = prep_image(image, inp_size)
+    im_dim = image.shape[1], image.shape[0]  # w,h
+    im_dim = np.array(im_dim)
+
+    output = []
+    if use_gpu:
+        # im_dim = im_dim.cuda()
+        img = img.cuda()
+    with torch.no_grad():
+        pred = model(img)
+    probs = np.zeros((side * side * num, classes))
+    boxes = np.zeros((side * side * num, 4))
+    get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+    # im_dim = torch.FloatTensor(im_dim).repeat(1, 2).numpy()
+    scaling_factor = np.min(inp_size / im_dim)
+
+    for i in range(probs.shape[0]):
+        cls = np.argmax(probs[i])
+        prob = probs[i][cls]
+        if prob > 0:
+            out = np.zeros(6)
+            out[:4] = boxes[i]*inp_size
+            out[[0,2]] -= (inp_size-scaling_factor*im_dim[0])/2
+            out[[1,3]] -= (inp_size-scaling_factor*im_dim[1])/2
+
+            out[:4] = out[:4]/scaling_factor
+            out[[0,2]] = np.clip(out[[0,2]],0.0,im_dim[0])
+            out[[1,3]] = np.clip(out[[1,3]],0.0,im_dim[1])
+
+            out[4] = prob
+            out[5] = cls
+            output.append(out)
+
+    for item in output:
+        # item = output[i]
+        cls = int(item[-1])
+        prob = float(item[-2])
+        box = item[:4]
+        image = imwrite(image, box, voc_class_names[cls], cls, prob)
+
+    cv2.imshow("{}".format(image_name), image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    # return output
+
+
+def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
+
+    print('load weight')
+    model = load_model(model_name, weight, mode)
+    if use_gpu:
+        model.cuda()
     # model.eval()
     # model = model.to(device)
-
     print("detecting")
-
     image = cv2.imread(image_name)
+
     h, w, _ = image.shape
-
-    img = img_trans(image.copy())
-    # img = img.to(device)
-
+    img = img_trans(image)
+    if use_gpu:
+        img = img.cuda()
     pred = model(img)
 
-    thresh = 0.02
-
-    if 0:
-        boxes, probs, cls_indices = get_detection_boxes_1(pred, thresh)
-        for i, box in enumerate(boxes):
-            box = box * torch.FloatTensor([w, h, w, h])
-            cls_index = cls_indices[i].item()
-            # print(cls_index)
-            prob = probs[i].item()
-            image = imwrite(image, box, voc_class_names[cls_index], colors, prob)
-    else:
+    if 1:
+        # default method
         probs = np.zeros((side * side * num, classes))
-        boxes = np.zeros((side*side*num, 4))
-        get_detection_boxes(pred, thresh, boxes, probs)
+        boxes = np.zeros((side * side * num, 4))
+        get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
         for i in range(probs.shape[0]):
             cls = np.argmax(probs[i])
             prob = probs[i][cls]
             if prob > 0:
                 box = boxes[i]
-                image = imwrite(image, convert_box(box, h, w), voc_class_names[cls], colors, prob)
+                image = imwrite(image, convert_box(box, h, w), voc_class_names[cls], cls, prob)
+    else:
+        # another method, in problem
+        if use_gpu:
+            pred = pred.cpu()
+        boxes, probs, cls_indices = get_detection_boxes_1(pred, 0.2, 0.4)
+        for i, box in enumerate(boxes):
+            box = box * torch.FloatTensor([w, h, w, h])
+            cls_index = cls_indices[i].item()
+            # print(cls_index)
+            prob = probs[i].item()
+            image = imwrite(image, box, voc_class_names[cls_index], cls_index, prob)
 
     cv2.imshow("{}".format(image_name), image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    # plt.title("{}".format(image_name))
-    # plt.imshow(image)
-    # plt.show()
-
-
-# def write_detections(fps, boxes, probs, h, w, imgid):
-#
-#     for i in range(probs.shape[0]):
-#         box = boxes[i]
-#         xmin, ymin, xmax, ymax = box[0] * w, box[1] * h, box[2] * w, box[3] * h
-#
-#         if xmin < 0:
-#             xmin = 0
-#         if ymin < 0:
-#             ymin = 0
-#         if xmax > w:
-#             xmax = w
-#         if ymax > h:
-#             ymax = h
-#         for j in range(classes):
-#             if probs[i][j] > 0:
-#                 fps[j].write('%s %f %f %f %f %f\n' % (imgid, probs[i][j], xmin, ymin, xmax, ymax))
-def eval_func(model, id, s, l):
-    # ins = in_buff[id]
-    boxes = np.zeros((side * side * num, 4))
-    probs = np.zeros((side * side * num, classes))
-
-    for i in range(s, s+l):
-        print("th-%d, [%d/%d]" % (id, i+1, len(in_buff)))
-        img = cv2.imread(in_buff[i])
-        h, w, _ = img.shape
-        imgid = i.split('/')[-1].split('.')[0]
-        img = img_trans(img)
-        pred = model(img)
-        # print("get boxes")
-        get_detection_boxes(pred, 0.002, boxes, probs)
-        for i in range(probs.shape[0]):
-            box = boxes[i]
-            xmin, ymin, xmax, ymax = box[0] * w, box[1] * h, box[2] * w, box[3] * h
-            if xmin < 0: xmin = 0
-            if ymin < 0: ymin = 0
-            if xmax > w: xmax = w
-            if ymax > h: ymax = h
-            for j in range(classes):
-                if probs[i][j] > 0:
-                    locks[j].acquire()
-                    fps[j].write('%s %f %f %f %f %f' % (j, imgid, probs[i][j], xmin, ymin, xmax, ymax))
-                    locks[j].release()
-                    # print('[%d] %s %f %f %f %f %f' % (id, imgid, probs[i][j], xmin, ymin, xmax, ymax))
-
-
-class EvalThread (threading.Thread):
-    def __init__(self, threadID, model, s, l, name=None):
-        super(EvalThread, self).__init__()
-        self.threadID = threadID
-        self.name = name
-        self.model = model
-        self.s = s
-        self.l = l
-        # self.probs = np.zeros((side * side * num, classes))
-        # self.boxes = np.zeros((side * side * num, 4))
-
-    def run(self):
-        print("Starting thread %d" % self.threadID)
-        eval_func(self.model, self.threadID, self.s, self.l)
-        print('thread %d over' % self.threadID)
-
-
-# for thread
-in_buff = []
-# out_buff = []
-fps = []
-locks = []
-
-
-def eval_out(test_file, model_name, weight, mode=0, num=2):
-    with open(test_file) as f:
-        lines = f.readlines()
-        lines = [line.strip() for line in lines]
-        lines = [line for line in lines if len(line)>0]
-
-    model = load_model(model_name, weight, mode,num)
-    if not os.path.exists('results'):
-        os.mkdir('results')
-    base = 'results/comp4_det_test'
-    # fps = []
-    for k in range(classes):
-        fps.append(open('%s_%s' % (base, voc_class_names[k]), 'w'))
-
-    use_thread = True
-
-    if use_thread:
-        nThreads = 8
-        in_buff = lines.copy()
-        tl = len(in_buff)
-        print(tl)
-        n = tl // nThreads
-        r = tl % nThreads
-        # out_buff = [[]]*nThreads
-        threads = []
-        for k in range(classes):
-            locks.append(threading.Lock())
-        since = time.time()
-        for i in range(nThreads):
-            if i < nThreads-1:
-                thread = EvalThread(i, model, i*n, n)
-            else:
-                thread = EvalThread(i, model, i*n, n+r)
-            thread.start()
-            threads.append(thread)
-
-        for t in threads:
-            t.join()
-        print("all get")
-
-
-        # for out in out_buff:
-        #     for l in out:
-        #         pos = l.find(' ')
-        #         cls = int(l[:pos])
-        #         fps[cls].write(l[pos+1:])
-    else:
-        boxes = np.zeros((side * side * num, 4))
-        probs = np.zeros((side * side * num, classes))
-        tl = len(lines)
-        since = time.time()
-        for i,l in enumerate(lines):
-            print('%d/%d'%(i+1,tl))
-            imgid = l.split('/')[-1].split('.')[0]
-            img = cv2.imread(l)
-            h, w, _ = img.shape
-            img = img_trans(img)
-            pred = model(img)
-            get_detection_boxes(pred, 0.001, boxes, probs)
-            for i in range(probs.shape[0]):
-                box = boxes[i]
-                xmin, ymin, xmax, ymax = box[0] * w, box[1] * h, box[2] * w, box[3] * h
-                if xmin < 0: xmin = 0
-                if ymin < 0: ymin = 0
-                if xmax > w: xmax = w
-                if ymax > h: ymax = h
-                for j in range(classes):
-                    if probs[i][j] > 0:
-                        fps[j].write('%s %f %f %f %f %f\n' % (imgid, probs[i][j], xmin, ymin, xmax, ymax))
-
-    print('spend {}s'.format(time.time() - since))
-
-    for fp in fps:
-        fp.close()
 
 
 def arg_parse():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument("-t", dest="target", default="test", help="[test|eval]", type=str)
+    arg_parser.add_argument("-t", dest="target", default="test", help="[test|eval|]", type=str)
     arg_parser.add_argument("-i", dest="imgn", help="image name", type=str)
-    arg_parser.add_argument("-m",dest="mn", default="vgg16", help="model name", type=str)
-    arg_parser.add_argument("--mode", dest="mode", default=0, help="model save mode", type=int)
-    arg_parser.add_argument("--num", dest="num", default=2, help="box number", type=int)
+    arg_parser.add_argument("-m",dest="mn", default="resnet50", help="model name", type=str)
+    arg_parser.add_argument("--mode", dest="mode", default=1, help="model save mode", type=int)
+    arg_parser.add_argument("--nms", dest="nms", default=0.4, help="nms thresh", type=float)
+    arg_parser.add_argument("--thresh", dest="thresh", default=0.2, help="confidence thresh", type=float)
+    # arg_parser.add_argument("--num", dest="num", default=2, help="box number", type=int)
     arg_parser.add_argument("weight", nargs=1, help="weight file", type=str)
 
     if len(sys.argv) < 2:
@@ -427,11 +409,15 @@ if __name__ == '__main__':
     image_name = args.imgn
     model_name = args.mn
     mode = args.mode
-    num = args.num
+    # num = args.num
+    nms = args.nms
+    thresh = args.thresh
     weight = args.weight[0]
 
     if do == "test":
-        test(model_name, image_name, weight, mode=mode, num=num)
+        test(model_name, image_name, weight,thresh,nms, mode=mode)
+        # predict_gpu_canvas(model_name,image_name,weight,thresh,nms,mode)
 
     elif do == "eval":
-        eval_out(image_name, model_name, weight, mode=mode, num=num)
+        print_yolo_detections(image_name,model_name,weight)
+        # eval_out(image_name, model_name, weight, mode=mode, num=num)

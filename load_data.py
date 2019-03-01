@@ -1,14 +1,11 @@
 from __future__ import print_function, division
-import os
+# import os
 import torch
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
 import random
-from util import imwrite,convert_box,load_classes
-import _pickle as pkl
-import time
 
 
 class VocDataset(Dataset):
@@ -291,15 +288,16 @@ class VocDataset(Dataset):
 # colors = pkl.load(open("pallete", "rb"))
 
 if __name__ == '__main__':
+    from util import imwrite, convert_box, load_classes
+    # import _pickle as pkl
+    import time
 
     voc_class_names = load_classes('data/voc.names')
-
-    colors = pkl.load(open("pallete", "rb"))
-
+    # colors = pkl.load(open("pallete", "rb"))
     voc_dataset = VocDataset('data/train.txt', augmentation=True)
     dlen = len(voc_dataset)
 
-    plt.ion()
+    # plt.ion()
     # fig = plt.figure()
     while 1:
         idx = np.random.randint(dlen)
@@ -315,7 +313,9 @@ if __name__ == '__main__':
         h,w,_ = image.shape
 
         for j in range(len(boxes)):
-            image = imwrite(image,convert_box(boxes[j], h, w, 1),voc_class_names[classes[j]],colors)
+            cls_ind = classes[j].item()
+            # print(cls_ind)
+            image = imwrite(image, convert_box(boxes[j], h, w, 1), voc_class_names[cls_ind], cls_ind)
 
         #plt.figure()
 

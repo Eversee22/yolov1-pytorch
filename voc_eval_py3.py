@@ -29,6 +29,7 @@ def parse_rec(filename):
 
     return objects
 
+
 def voc_ap(rec, prec, use_07_metric=False):
     """ ap = voc_ap(rec, prec, [use_07_metric])
     Compute VOC AP given precision and recall.

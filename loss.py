@@ -22,7 +22,6 @@ class YOLOLoss(nn.Module):
         :return: [N]
 
         """
-
         # Get the coordinates of bounding boxes
         b1_x1, b1_y1, b1_x2, b1_y2 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
         b2_x1, b2_y1, b2_x2, b2_y2 = box2[:, 0], box2[:, 1], box2[:, 2], box2[:, 3]
@@ -44,7 +43,6 @@ class YOLOLoss(nn.Module):
         iou = inter_area / (b1_area + b2_area - inter_area)
 
         return iou
-
 
     def forward(self, preds, labels):
         return self.loss_1(preds, labels)
@@ -186,36 +184,38 @@ class YOLOLoss(nn.Module):
         noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
 
         # object containing loss
-        obj_response_mask = torch.ByteTensor(box_label.size()).zero_()
-        obj_not_response_mask = torch.ByteTensor(box_label.size()).zero_()
+        obj_response_mask = torch.cuda.ByteTensor(box_label.size())
+        obj_response_mask.zero_()
+        obj_not_response_mask = torch.cuda.ByteTensor(box_label.size())
+        obj_not_response_mask.zero_()
         box_label_iou = torch.zeros(box_label.size())
         if self.use_gpu:
             box_label_iou = box_label_iou.cuda()
 
+        s = 1/self.side
         for i in range(0, box_label.size(0), self.num):
-            bbox = box_pred[i:i + self.num]
-            bbox_coord = torch.FloatTensor(bbox.size()) #Variable
-            bbox_coord[:, :2] = bbox[:, :2] / self.side - 0.5 * bbox[:, 2:4]
-            bbox_coord[:, 2:4] = bbox[:, :2] / self.side + 0.5 * bbox[:, 2:4]
+            box1 = box_pred[i:i + self.num]
+            box1_coord = torch.FloatTensor(box1.size())  # Variable
+            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
+            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
 
-            _bbox = box_label[i].view(-1, 5)
-            _bbox_coord = torch.FloatTensor(_bbox.size()) #Variable
-            _bbox_coord[:, :2] = _bbox[:, :2] / self.side - 0.5 * _bbox[:, 2:4]
-            _bbox_coord[:, 2:4] = _bbox[:, :2] / self.side + 0.5 * _bbox[:, 2:4]
-            iou = self.compute_iou(bbox[:, :4], _bbox[:, :4])
-
+            box2 = box_label[i].view(-1, 5)
+            box2_coord = torch.FloatTensor(box2.size())  # Variable
+            box2_coord[:, :2] = box2[:, :2] * s - 0.5 * box2[:, 2:4]
+            box2_coord[:, 2:4] = box2[:, :2] * s + 0.5 * box2[:, 2:4]
+            iou = self.compute_iou(box1_coord[:, :4], box2_coord[:, :4])
             # print(iou.shape)
             # assert iou.shape[0] == self.num
 
             max_iou, max_index = iou.max(0)
+            # max_index = max_index.data.cuda()
 
-            # print(max_iou, max_index)
+            obj_response_mask[i + max_index] = 1
+            # obj_not_response_mask[i + 1 - max_index] = 1
+            obj_not_response_mask[i:i + self.num] = 1
+            obj_not_response_mask[i + max_index] = 0
 
-            obj_response_mask[i+max_index] = 1
-            obj_not_response_mask[i:i+self.num] = 1
-            obj_not_response_mask[i+max_index] = 0
-
-            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data
+            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data.cuda()
 
         # response loss
         box_pred_response = box_pred[obj_response_mask].view(-1, 5)
@@ -239,6 +239,13 @@ class YOLOLoss(nn.Module):
         return total_loss / N
 
 
-
+if __name__ == '__main__':
+    yololoss = YOLOLoss(14,2,1,5,.5)
+    torch.manual_seed(1)
+    pred = torch.rand(1, 14, 2, 30).cuda()
+    target = torch.rand(pred.shape).cuda()
+    loss = yololoss(pred, target)
+    # loss_1 =yololoss.loss(pred,target)
+    print(loss)
 
 

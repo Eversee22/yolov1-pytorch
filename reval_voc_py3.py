@@ -18,6 +18,7 @@ import _pickle as cPickle
 
 from voc_eval_py3 import voc_eval
 
+
 def parse_args():
     """
     Parse input arguments
@@ -38,10 +39,12 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
 def get_voc_results_file_template(image_set, out_dir = 'results'):
     filename = 'comp4_det_' + image_set + '_{:s}'
     path = os.path.join(out_dir, filename)
     return path
+
 
 def do_python_eval(devkit_path, year, image_set, classes, output_dir = 'results'):
     annopath = os.path.join(
@@ -59,6 +62,7 @@ def do_python_eval(devkit_path, year, image_set, classes, output_dir = 'results'
     aps = []
     # The PASCAL VOC metric changed in 2010
     use_07_metric = True if int(year) < 2010 else False
+    # use_07_metric = False
     print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
     print('devkit_path=',devkit_path,', year = ',year)
 
@@ -88,7 +92,6 @@ def do_python_eval(devkit_path, year, image_set, classes, output_dir = 'results'
     print('Results should be very close to the official MATLAB eval code.')
     print('-- Thanks, The Management')
     print('--------------------------------------------------------------')
-
 
 
 if __name__ == '__main__':
