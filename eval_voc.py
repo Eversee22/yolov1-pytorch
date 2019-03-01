@@ -136,7 +136,7 @@ def test_eval():
 
 if __name__ == '__main__':
     # test_eval()
-    from validate import predict_gpu
+    from validate import predict_gpu_1
     from collections import defaultdict
     from tqdm import tqdm
 
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     # count = 0
     for image_path in tqdm(image_list):
         # result[[left_up,right_bottom,class_name,image_path],]
-        result = predict_gpu("resnet50",image_path,'backup/resnet50_best.pth')
+        result = predict_gpu_1("resnet50",image_path,'backup/resnet50_best.pth')
         for (x1,y1),(x2,y2),class_name,image_id,prob in result:
             preds[class_name].append([image_id,prob,x1,y1,x2,y2])
 
