@@ -383,7 +383,7 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
                 image = imwrite(image, convert_box(box, h, w, inp_size), voc_class_names[cls], cls, prob)
 
         cv2.imshow("img", image)
-        cv2.imwrite('det/bbox_%s' % imp.split('/')[-1], image)
+        cv2.imwrite('det/bbox_%s.png' % imp.split('/')[-1].split('.')[0], image)
         key = cv2.waitKey(1)
         if key & 0xFF == ord('q'):
             cv2.destroyWindow('img')
@@ -432,7 +432,7 @@ def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1
             # print(cls_index)
             prob = probs[i].item()
             image = imwrite(image, box, voc_class_names[cls_index], cls_index, prob)
-
+    cv2.imwrite('bbox_%s.png' % image_name.split('/')[-1].split('.')[0], image)
     cv2.imshow("{}".format(image_name), image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
