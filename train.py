@@ -13,6 +13,7 @@ import torch.nn as nn
 from mmodels import mvgg
 import os
 from visualize import Visualizer
+from adabound import adabound
 
 # side = 7
 # num = 2
@@ -29,10 +30,9 @@ momentum = 0.9
 weight_decay = 5e-4
 steps = [30, 40]
 lr_scale = [0.1, 0.1]
-num_epochs = 50
+num_epochs = 1
 
 d = readcfg('cfg/yolond')
-
 side = int(d['side'])
 num = int(d['num'])
 classes = int(d['classes'])
@@ -76,19 +76,21 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs):
 
     for epoch in range(num_epochs):
         model.train()
-        if scheduler is None:
-            # for i, step in enumerate(steps):
-            #     if epoch == step:
-            #         lr = lr * lr_scale[i]
-            #         break
-            if s < len(steps) and steps[s] == epoch:
-                lr = lr * lr_scale[s]
-                s += 1
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-        else:
-            scheduler.step()
-            lr = scheduler.get_lr()
+        # if scheduler is None:
+        #     # for i, step in enumerate(steps):
+        #     #     if epoch == step:
+        #     #         lr = lr * lr_scale[i]
+        #     #         break
+        #     if s < len(steps) and steps[s] == epoch:
+        #         lr = lr * lr_scale[s]
+        #         s += 1
+        #     for param_group in optimizer.param_groups:
+        #         param_group['lr'] = lr
+        # else:
+        #     scheduler.step()
+        #     lr = scheduler.get_lr()
+        scheduler.step()
+        lr = scheduler.get_lr()
 
         print('Epoch {}/{}, lr:{}'.format(epoch + 1, num_epochs, lr))
         print('-' * 16)
@@ -140,7 +142,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs):
 
         if best_test_loss > validation_loss:
             best_test_loss = validation_loss
-            print('epoch%d, get best test loss %.5f' % (epoch, best_test_loss))
+            print('epoch%d, get best test loss %.5f' % (epoch+1, best_test_loss))
             if log:
                 logfile.write('epoch[{}/{}], best test loss:{}\n'.format(epoch + 1, num_epochs, best_test_loss))
             torch.save({'epoch': epoch, 'lr': lr, 'model': model.state_dict()}, 'backup/{}_best.pth'.format(model_name))
@@ -161,7 +163,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs):
 
 model_name = "resnet50"
 if visualize:
-    vis = Visualizer(env='yolo')
+    vis = Visualizer(env=model_name)
 if log:
     if not os.path.exists('log'):
         os.mkdir('log')
@@ -170,11 +172,22 @@ if log:
 model_ft = get_model_ft(model_name)
 # model_ft = load_model_trd(model_name, 'backup/vgg16_bn_model_30')
 assert model_ft is not None
+# print(model_ft)
+
 model_ft.to(device)
 
 criterion = YOLOLoss(side=side, num=num, sqrt=sqrt, coord_scale=coord_scale, noobj_scale=noobj_scale)
-# params = model_ft.parameters()
+
+# params=[]
+# params_dict = dict(model_ft.named_parameters())
+# for key,value in params_dict.items():
+#     print(key,value.shape)
+#     if key.startswith('features'):
+#         params += [{'params':[value],'lr':initial_lr*1}]
+#     else:
+#         params += [{'params':[value],'lr':initial_lr}]
 optimizer_ft = optim.SGD(model_ft.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
+# optimizer_ft = adabound.AdaBound(model_ft.parameters(),lr=1e-4,final_lr=initial_lr)
 _lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=steps, gamma=0.1)
 
 if not os.path.exists('backup'):

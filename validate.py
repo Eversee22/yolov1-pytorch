@@ -10,6 +10,8 @@ import _pickle as pkl
 from util import bbox_iou2
 import os
 from tqdm import tqdm
+import time
+import random
 
 d = readcfg('cfg/yolond')
 side = int(d['side'])
@@ -284,7 +286,7 @@ def print_yolo_detections(test_file, model_name, weight,use_gpu=True):
         f.close()
 
 
-def predict_gpu_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
+def test_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
     print('load weight')
     model = load_model(model_name, weight, mode)
     if use_gpu:
@@ -338,6 +340,59 @@ def predict_gpu_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thre
     # return output
 
 
+def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
+    print('load weight')
+    model = load_model(model_name, weight, mode)
+    if use_gpu:
+        model.cuda()
+    # model.eval()
+    # model = model.to(device)
+    print("detecting")
+    images= []
+    try:
+        images = [os.path.join(test_file, img) for img in os.listdir(test_file)]
+    except NotADirectoryError:
+        try:
+            with open(test_file) as f:
+                for l in f:
+                    images.append(l.strip())
+        except Exception as e:
+            print(e)
+            exit()
+    except FileNotFoundError:
+        print("No file or directory with the name {}".format(images))
+        exit()
+    if not os.path.exists('det'):
+        os.mkdir('det')
+    random.shuffle(images)
+    for imp in images:
+        image = cv2.imread(imp)
+        h, w, _ = image.shape
+        img = img_trans(image)
+        if use_gpu:
+            img = img.cuda()
+        pred = model(img)
+        probs = np.zeros((side * side * num, classes))
+        boxes = np.zeros((side * side * num, 4))
+        get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+        for i in range(probs.shape[0]):
+            cls = np.argmax(probs[i])
+            prob = probs[i][cls]
+            if prob > 0:
+                box = boxes[i]
+                image = imwrite(image, convert_box(box, h, w, inp_size), voc_class_names[cls], cls, prob)
+
+        cv2.imshow("img", image)
+        cv2.imwrite('det/bbox_%s' % imp.split('/')[-1], image)
+        key = cv2.waitKey(1)
+        if key & 0xFF == ord('q'):
+            cv2.destroyWindow('img')
+            break
+        # elif key & 0xFF == ord('s'):
+        #     cv2.imwrite('det/bbox_%s' % imp.split('/')[-1], image)
+        time.sleep(2)
+
+
 def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
 
     print('load weight')
@@ -365,7 +420,7 @@ def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1
             prob = probs[i][cls]
             if prob > 0:
                 box = boxes[i]
-                image = imwrite(image, convert_box(box, h, w), voc_class_names[cls], cls, prob)
+                image = imwrite(image, convert_box(box, h, w, inp_size), voc_class_names[cls], cls, prob)
     else:
         # another method, in problem
         if use_gpu:
@@ -385,13 +440,12 @@ def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1
 
 def arg_parse():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument("-t", dest="target", default="test", help="[test|eval|]", type=str)
+    arg_parser.add_argument("-t", dest="target", default="test", help="[test|eval|test2|test3]", type=str)
     arg_parser.add_argument("-i", dest="imgn", help="image name", type=str)
     arg_parser.add_argument("-m",dest="mn", default="resnet50", help="model name", type=str)
     arg_parser.add_argument("--mode", dest="mode", default=1, help="model save mode", type=int)
-    arg_parser.add_argument("--nms", dest="nms", default=0.4, help="nms thresh", type=float)
+    arg_parser.add_argument("--nms", dest="nms", default=0.45, help="nms thresh", type=float)
     arg_parser.add_argument("--thresh", dest="thresh", default=0.2, help="confidence thresh", type=float)
-    # arg_parser.add_argument("--num", dest="num", default=2, help="box number", type=int)
     arg_parser.add_argument("weight", nargs=1, help="weight file", type=str)
 
     if len(sys.argv) < 2:
@@ -415,9 +469,10 @@ if __name__ == '__main__':
     weight = args.weight[0]
 
     if do == "test":
-        test(model_name, image_name, weight,thresh,nms, mode=mode)
-        # predict_gpu_canvas(model_name,image_name,weight,thresh,nms,mode)
-
+        test(model_name, image_name, weight,thresh,nms, mode)
+    elif do == "test2":
+        test_many(model_name, image_name, weight, thresh, nms, mode)
+    elif do == "test3":
+        test_canvas(model_name, image_name, weight, thresh, nms, mode)
     elif do == "eval":
         print_yolo_detections(image_name,model_name,weight)
-        # eval_out(image_name, model_name, weight, mode=mode, num=num)
