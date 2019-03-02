@@ -76,11 +76,14 @@ def bbox_iou2(box1, box2):
     return iou
 
 
-def convert_box(box, h, w, mode=0):
+def convert_box(box, h, w, mode=0,inp_size=448):
+    # scale = inp_size/np.array((w, h))
     if mode == 1:
-        xmin, ymin, xmax, ymax = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+        xmin,xmax = box[[0,2]]
+        ymin,ymax = box[[1,3]]
     else:
-        xmin, ymin, xmax, ymax = int(box[0]*w), int(box[1]*h), int(box[2]*w), int(box[3]*h)
+        xmin,xmax = box[[0,2]]*w
+        ymin,ymax = box[[1,3]]*h
 
     if xmin < 0: xmin = 0
     if ymin < 0: ymin = 0

@@ -4,6 +4,7 @@ import numpy as np
 from validate import get_detection_boxes,img_trans,load_model
 from util import convert_box
 
+
 def arg_parse():
     """
     Parse arguements to the detect module
@@ -19,9 +20,9 @@ def arg_parse():
     #                     default="448", type=str)
     parser.add_argument("-v", dest="videofile", help="Video file to run detection on", type=str)
 
-    if len(sys.argv)<4:
-        parser.print_help()
-        exit(0)
+    # if len(sys.argv)<2:
+    #     parser.print_help()
+    #     exit(0)
 
     return parser.parse_args()
 
@@ -157,13 +158,19 @@ if __name__ == '__main__':
                 box = item[:4]
                 frame = imwrite(frame, box, class_names[cls], cls)
 
+            frames += 1
+            fps = frames / (time.time()-start)
+            label='fps:{:.3f}'.format(fps)
+            # t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1, 1)[0]
+            cv2.putText(frame, label, (1, 10), cv2.FONT_HERSHEY_PLAIN, 1, [0, 255, 255], 1);
             cv2.imshow("frame", frame)
             key = cv2.waitKey(1)
             if key & 0xFF == ord('q'):
                 break
-            frames += 1
+
             print(time.time()-start)
-            print("FPS of the video is {:5.2f}".format(frames / (time.time() - start)))
+
+            # print("FPS of the video is {:5.2f}".format(fps))
         else:
             break
 

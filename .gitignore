@@ -4,6 +4,7 @@ __pycache__/
 results/
 utils/
 log/
+imgs/
 *.txt
 .idea
 *.pyc
