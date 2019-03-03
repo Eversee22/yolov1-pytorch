@@ -42,7 +42,7 @@ coord_scale = float(d['coord_scale'])
 object_scale = float(d['object_scale'])
 class_scale = float(d['class_scale'])
 # batch_size = int(d['batch_size'])
-batch_size = 8
+batch_size = 8  # if gpu memory is enough, 16 ~ 64 is ok
 inp_size = int(d['inp_size'])
 # initial_lr = float(d['initial_lr'])
 # momentum = float(d['momentum'])
@@ -51,7 +51,7 @@ visualize = True
 log = True
 
 data_transforms = transforms.Compose([
-    transforms.ToTensor(),
+    # transforms.ToTensor(),
 ])
 
 train_dataset = VocDataset('data/train.txt', side=side, num=num, input_size=inp_size, augmentation=True, transform=data_transforms)

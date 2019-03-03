@@ -6,6 +6,8 @@ utils/
 log/
 imgs/
 det/
+*.png
+*.jpg
 *.txt
 .idea
 *.pyc

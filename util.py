@@ -76,7 +76,7 @@ def bbox_iou2(box1, box2):
     return iou
 
 
-def convert_box(box, h, w, mode=0,inp_size=448):
+def convert_box(box, h, w, mode=0, inp_size=448):
     # scale = inp_size/np.array((w, h))
     if mode == 1:
         xmin,xmax = box[[0,2]]
@@ -188,11 +188,16 @@ def readcfg(cfg_file):
 
 
 if __name__ == '__main__':
-   box = [0,0,3,2]
+   box = [[0.2819, 0.2168, 0.4405, 0.8869]]
    box1 = [2,1.5,5,3.5]
    box2 = [2.5,1.5,5.5,3.5]
+   box4 = [[0.2856, 0.2413, 0.4485, 0.8579],
+           [0.1397, 0.6240, 0.3046, 0.8226],
+           [0.1329, 0.6182, 0.3131, 0.8271],
+           [0.2674, 0.2239, 0.4332, 0.8588],
+           ]
 
-   iou1 = bbox_iou(torch.FloatTensor(box),torch.FloatTensor(box1),1)
-   iou2 = bbox_iou2(box,box1)
+   iou1 = bbox_iou(torch.FloatTensor(box),torch.FloatTensor(box4),0)
+   # iou2 = bbox_iou2(box,box1)
    # iou3 = bbox_iou2(box1,box2)
-   print(iou1,iou2)
+   print(iou1)

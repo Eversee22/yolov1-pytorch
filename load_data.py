@@ -71,9 +71,7 @@ class VocDataset(Dataset):
         img = self.BGR2RGB(img)  # because pytorch pretrained model use RGB
         # img = self.subMean(img, self.mean)  #
         img = cv2.resize(img, (self.image_size, self.image_size))
-        img = np.ascontiguousarray(img, dtype=np.float32)
-        img /= 255.0
-        # img = img.transpose((2, 0, 1))
+        img = torch.from_numpy(img.transpose((2, 0, 1))).float().div(255.0)
         gt = self.encoder(boxes, labels)
 
         if self.transform is not None:
