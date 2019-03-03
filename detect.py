@@ -96,6 +96,8 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
         pred = get_pred(image,model,use_gpu)
         boxes, probs, cls_indices = get_detection_boxes_1(pred, prob_thresh, nms_thresh, True)
         for i, box in enumerate(boxes):
+            if probs[i] == 0:
+                continue
             box = convert_box(box,h,w)
             cls_index = cls_indices[i].item()
             # print(cls_index)

@@ -237,8 +237,11 @@ def get_test_result_1(model_name, image_name, weight, prob_thresh=0.2, nms_thres
     # since = time.time()
     boxes, probs, clsinds = get_detection_boxes_1(pred, prob_thresh, nms_thresh)
     # print('spend {}s'.format(time.time() - since))
+    output = []
     write = 0
     for i, box in enumerate(boxes):
+        if probs[i] == 0:
+            continue
         box = torch.FloatTensor(convert_box(box,h,w))
         prob = probs[i].unsqueeze(0)
         cls_ind = clsinds[i].unsqueeze(0).float()

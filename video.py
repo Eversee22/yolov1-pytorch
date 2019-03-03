@@ -1,7 +1,7 @@
 import argparse
 import sys
 import numpy as np
-from validate import get_detection_boxes,img_trans,load_model
+from predict import get_detection_boxes,get_detection_boxes_1,get_pred,load_model
 from util import convert_box
 
 
@@ -89,25 +89,32 @@ def predictv(frame, model, prob_thresh=0.2,nms_thresh=0.4, CUDA=True):
 
 def predictv2(frame, model, prob_thresh=0.2,nms_thresh=0.4, CUDA=True):
     h,w,_ = frame.shape
-    img = img_trans(frame)
-    if CUDA:
-        img = img.cuda()
-    with torch.no_grad():
-        pred = model(img)
-    probs = np.zeros((side * side * num, class_num))
-    boxes = np.zeros((side * side * num, 4))
-    get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+
+    # img = img_trans(frame)
+    # if CUDA:
+    #     img = img.cuda()
+    # with torch.no_grad():
+    #     pred = model(img)
+    # probs = np.zeros((side * side * num, class_num))
+    # boxes = np.zeros((side * side * num, 4))
+    # get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+    pred = get_pred(frame,model,CUDA)
+    boxes, probs, cls_inds = get_detection_boxes_1(pred,prob_thresh,nms_thresh)
     output = []
-    for i in range(probs.shape[0]):
-        cls = np.argmax(probs[i])
-        prob = probs[i][cls]
-        if prob > 0:
-            out = np.zeros(6)
-            box = boxes[i]
-            out[:4] = convert_box(box,h,w)
-            out[4] = prob
-            out[5] = cls
-            output.append(out)
+    write = 0
+    for i, box in enumerate(boxes):
+        if probs[i] == 0:
+            continue
+        box = torch.FloatTensor(convert_box(box, h, w))
+        prob = probs[i].unsqueeze(0)
+        cls_ind = cls_inds[i].unsqueeze(0).float()
+        if write == 0:
+            output = torch.cat((box, prob, cls_ind)).unsqueeze(0)
+            write = 1
+        else:
+            out = torch.cat((box, prob, cls_ind)).unsqueeze(0)
+            output = torch.cat((output, out))
+
     return output
 
 
