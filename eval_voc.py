@@ -1,34 +1,28 @@
-#encoding:utf-8
-#
-#created by xiongzihua
-#
-import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import numpy as np
 from util import load_classes
 
 VOC_CLASSES = load_classes('data/voc.names')
-Color = [[0, 0, 0],
-                    [128, 0, 0],
-                    [0, 128, 0],
-                    [128, 128, 0],
-                    [0, 0, 128],
-                    [128, 0, 128],
-                    [0, 128, 128],
-                    [128, 128, 128],
-                    [64, 0, 0],
-                    [192, 0, 0],
-                    [64, 128, 0],
-                    [192, 128, 0],
-                    [64, 0, 128],
-                    [192, 0, 128],
-                    [64, 128, 128],
-                    [192, 128, 128],
-                    [0, 64, 0],
-                    [128, 64, 0],
-                    [0, 192, 0],
-                    [128, 192, 0],
-                    [0, 64, 128]]
+# Color = [[0, 0, 0],
+#                     [128, 0, 0],
+#                     [0, 128, 0],
+#                     [128, 128, 0],
+#                     [0, 0, 128],
+#                     [128, 0, 128],
+#                     [0, 128, 128],
+#                     [128, 128, 128],
+#                     [64, 0, 0],
+#                     [192, 0, 0],
+#                     [64, 128, 0],
+#                     [192, 128, 0],
+#                     [64, 0, 128],
+#                     [192, 0, 128],
+#                     [64, 128, 128],
+#                     [192, 128, 128],
+#                     [0, 64, 0],
+#                     [128, 64, 0],
+#                     [0, 192, 0],
+#                     [128, 192, 0],
+#                     [0, 64, 128]]
 
 
 def voc_ap(rec, prec, use_07_metric=False):
@@ -57,11 +51,13 @@ def voc_ap(rec, prec, use_07_metric=False):
     return ap
 
 
-def voc_eval(preds,target, voc_classes=VOC_CLASSES, threshold=0.5,use_07_metric=False):
+def voc_eval(preds, target, voc_classes=VOC_CLASSES, threshold=0.5,use_07_metric=False):
     '''
     preds {'cat':[[image_id,confidence,x1,y1,x2,y2],...],'dog':[[],...]}
     target {(image_id,class):[[],]}
     '''
+
+    print('use 07 metric ?', 'Yes' if use_07_metric else 'No')
     aps = []
     for i,class_ in enumerate(voc_classes):
         pred = preds[class_] #[[image_id,confidence,x1,y1,x2,y2],...]
@@ -138,7 +134,7 @@ if __name__ == '__main__':
     # test_eval()
     from predict import predict_eval_1
     from collections import defaultdict
-    from tqdm import tqdm
+    # from tqdm import tqdm
 
     target = defaultdict(list)
     preds = defaultdict(list)
@@ -166,14 +162,10 @@ if __name__ == '__main__':
             class_name = VOC_CLASSES[c]
             target[(image_id, class_name)].append([x1,y1,x2,y2])
 
-    print('---start test---')
-    predict_eval_1(preds, "resnet50", image_list, 'backup/weights_sgd/resnet50_best.pth')
-    # count = 0
-    # for image_path in tqdm(image_list):
-    #     # result[[left_up,right_bottom,class_name,image_path],]
-    #     result = predict_gpu_1("resnet50",image_path,'backup/resnet50_best.pth')
-    #     for (x1,y1),(x2,y2),class_name,image_id,prob in result:
-    #         preds[class_name].append([image_id,prob,x1,y1,x2,y2])
+    print('---get predictions---')
+    model = 'resnet50'
+    weight = 'backup/weights_sgd/resnet50_best.pth'
+    predict_eval_1(preds, model, image_list, weight)
 
     print('---start evaluate---')
-    voc_eval(preds, target)
+    voc_eval(preds, target, use_07_metric=True)
