@@ -27,7 +27,7 @@ def arg_parse():
     return parser.parse_args()
 
 
-def predictv(frame, model, prob_thresh=0.2,nms_thresh=0.4, CUDA=True):
+def predict_canvas(frame, model, prob_thresh=0.2,nms_thresh=0.4, CUDA=True):
     img = prep_image(frame, inp_dim)
     im_dim = frame.shape[1], frame.shape[0]  # w,h
     im_dim = torch.FloatTensor(im_dim).repeat(1, 2)
@@ -87,17 +87,30 @@ def predictv(frame, model, prob_thresh=0.2,nms_thresh=0.4, CUDA=True):
     return output
 
 
+def predictv1(frame, model, prob_thresh=0.2,nms_thresh=0.4, CUDA=True):
+    h,w,_ = frame.shape
+    pred = get_pred(frame,model,CUDA)
+    probs = np.zeros((side * side * num, class_num))
+    boxes = np.zeros((side * side * num, 4))
+    get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+    output = []
+
+    for i in range(probs.shape[0]):
+        cls = np.argmax(probs[i])
+        prob = probs[i][cls]
+        if prob > 0:
+            box = boxes[i]
+            out = np.zeros(6)
+            out[:4] = convert_box(box,h,w)
+            out[4] = prob
+            out[5] = cls
+            output.append(out)
+
+    return output
+
+
 def predictv2(frame, model, prob_thresh=0.2,nms_thresh=0.4, CUDA=True):
     h,w,_ = frame.shape
-
-    # img = img_trans(frame)
-    # if CUDA:
-    #     img = img.cuda()
-    # with torch.no_grad():
-    #     pred = model(img)
-    # probs = np.zeros((side * side * num, class_num))
-    # boxes = np.zeros((side * side * num, 4))
-    # get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
     pred = get_pred(frame,model,CUDA)
     boxes, probs, cls_inds = get_detection_boxes_1(pred,prob_thresh,nms_thresh)
     output = []
@@ -157,7 +170,7 @@ if __name__ == '__main__':
     while cap.isOpened():
         ret, frame = cap.read()
         if ret:
-            output = predictv2(frame, model, CUDA=CUDA)
+            output = predictv1(frame, model, CUDA=CUDA)
             for item in output:
                 # item = output[i]
                 cls = int(item[-1])
