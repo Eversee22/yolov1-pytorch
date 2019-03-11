@@ -14,6 +14,7 @@ num = int(d['num'])
 classes = int(d['classes'])
 inp_size = int(d['inp_size'])
 voc_class_names = load_classes('data/voc.names')
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 def load_model(model_name, weight, mode):
@@ -22,9 +23,9 @@ def load_model(model_name, weight, mode):
 
     if mode == 1:
         # checkpoint = torch.load(weight)
-        model.load_state_dict(torch.load(weight)['model'])
+        model.load_state_dict(torch.load(weight,map_location=device)['model'])
     else:
-        model.load_state_dict(torch.load(weight))
+        model.load_state_dict(torch.load(weight,map_location=device))
     model.eval()
 
     return model
@@ -116,16 +117,16 @@ def get_detection_boxes_1(pred, prob_thres,nms_thresh, nms=True):
         for j in range(side):
             for k in range(num):
                 if mask[i, j, k] == 1:
-                    box = pred[i, j, k*5:k*5+4]
                     objc = torch.FloatTensor([pred[i,j,k*5+4]])
                     xy = torch.FloatTensor([j,i])
-                    box[:2] = (box[:2]+xy)/side
-                    box2 = torch.FloatTensor(box.size())
-                    box2[:2] = box[:2] - 0.5*box[2:]
-                    box2[2:] = box[:2] + 0.5*box[2:]
                     max_prob, cls_ind = torch.max(pred[i, j, num*5:].view(-1, 1), 0)
                     c_prob = objc*max_prob
                     if c_prob.item() > prob_thres:
+                        box = pred[i, j, k*5:k*5+4]
+                        box[:2] = (box[:2]+xy)/side
+                        box2 = torch.FloatTensor(box.size())
+                        box2[:2] = box[:2] - 0.5*box[2:]
+                        box2[2:] = box[:2] + 0.5*box[2:]
                         boxes.append(box2.view(1,4))
                         cls_indices.append(cls_ind)
                         # print(c_prob)
