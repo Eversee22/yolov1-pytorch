@@ -5,7 +5,6 @@ results/
 utils/
 log/
 imgs/
-#det/
 *.png
 *.jpg
 *.txt
