@@ -5,8 +5,8 @@ results/
 utils/
 log/
 imgs/
-*.png
-*.jpg
-*.txt
+./*.png
+./*.jpg
+./*.txt
 .idea
 *.pyc
