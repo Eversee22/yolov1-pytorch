@@ -7,6 +7,6 @@ log/
 imgs/
 ./*.png
 ./*.jpg
-./*.txt
+*.txt
 .idea
 *.pyc

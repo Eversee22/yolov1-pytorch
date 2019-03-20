@@ -42,7 +42,7 @@ coord_scale = float(d['coord_scale'])
 object_scale = float(d['object_scale'])
 class_scale = float(d['class_scale'])
 # batch_size = int(d['batch_size'])
-batch_size = 8  # if gpu memory is enough, 16 ~ 64 is ok
+batch_size = 16  # if gpu memory is enough, 16 ~ 64 is ok
 inp_size = int(d['inp_size'])
 # initial_lr = float(d['initial_lr'])
 # momentum = float(d['momentum'])
@@ -54,7 +54,7 @@ data_transforms = transforms.Compose([
     # transforms.ToTensor(),
 ])
 
-train_dataset = VocDataset('data/train.txt', side=side, num=num, input_size=inp_size, augmentation=True, transform=data_transforms)
+train_dataset = VocDataset('data/train07.txt', side=side, num=num, input_size=inp_size, augmentation=True, transform=data_transforms)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 # train_dataset_size = len(train_dataset)
 train_loader_size = len(train_dataloader)
@@ -123,29 +123,29 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs):
             logfile.write('epoch[{}/{}], average loss:{}\n'.format(epoch+1, num_epochs, running_loss/train_loader_size))
 
         # validation
-        validation_loss = 0.0
-        model.eval()
-        for i, (imgs, target) in enumerate(test_loader):
-            imgs = imgs.to(device)
-            target = target.to(device)
-
-            out = model(imgs)
-            loss = criterion(out, target)
-            validation_loss += loss.item()
-
-        validation_loss /= test_loader_size
-        if visualize:
-            vis.plot_many_stack({'train': running_loss / train_loader_size, 'val': validation_loss})
-        if log:
-            logfile.write('epoch[{}/{}], validation loss:{}\n'.format(epoch + 1, num_epochs, validation_loss))
-        print('validation loss:{}'.format(validation_loss))
-
-        if best_test_loss > validation_loss:
-            best_test_loss = validation_loss
-            print('epoch%d, get best test loss %.5f' % (epoch+1, best_test_loss))
-            if log:
-                logfile.write('epoch[{}/{}], best test loss:{}\n'.format(epoch + 1, num_epochs, best_test_loss))
-            torch.save({'epoch': epoch, 'lr': lr, 'model': model.state_dict()}, 'backup/{}_best.pth'.format(model_name))
+        # validation_loss = 0.0
+        # model.eval()
+        # for i, (imgs, target) in enumerate(test_loader):
+        #     imgs = imgs.to(device)
+        #     target = target.to(device)
+        #
+        #     out = model(imgs)
+        #     loss = criterion(out, target)
+        #     validation_loss += loss.item()
+        #
+        # validation_loss /= test_loader_size
+        # if visualize:
+        #     vis.plot_many_stack({'train': running_loss / train_loader_size, 'val': validation_loss})
+        # if log:
+        #     logfile.write('epoch[{}/{}], validation loss:{}\n'.format(epoch + 1, num_epochs, validation_loss))
+        # print('validation loss:{}'.format(validation_loss))
+        #
+        # if best_test_loss > validation_loss:
+        #     best_test_loss = validation_loss
+        #     print('epoch%d, get best test loss %.5f' % (epoch+1, best_test_loss))
+        #     if log:
+        #         logfile.write('epoch[{}/{}], best test loss:{}\n'.format(epoch + 1, num_epochs, best_test_loss))
+        #     torch.save({'epoch': epoch, 'lr': lr, 'model': model.state_dict()}, 'backup/{}_best.pth'.format(model_name))
 
         if log:
             logfile.flush()
