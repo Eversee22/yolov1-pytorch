@@ -1,5 +1,5 @@
 import torch
-from util import readcfg, bbox_iou2,load_classes
+from util import readcfg, bbox_iou, bbox_iou2,load_classes
 from ftd_model import get_model_ft
 import numpy as np
 import cv2
@@ -143,8 +143,9 @@ def get_detection_boxes_1(pred, prob_thres,nms_thresh, nms=True):
         cls_indices = torch.cat(cls_indices, 0)  # (n,)
 
     if nms:
+        #since = time.time()
         keep = do_nms_1(boxes, probs, nms_thresh)
-        # print(len(keep))
+        #print("do nms 1:%.3fs" % (time.time()-since))
         return boxes[keep], probs[keep], cls_indices[keep]
     else:
         return boxes, probs, cls_indices
@@ -163,11 +164,24 @@ def do_nms(boxes, probs, thresh=0.4):
             if probs[order[i]][k] == 0:
                 continue
             box_a = boxes[order[i]]
-            for j in range(i+1, total):
-                box_b = boxes[order[j]]
-                iou = bbox_iou2(box_a, box_b)
-                if iou > thresh:
-                    probs[order[j]][k] = 0
+            box_b = boxes[order[i+1:]]
+            ixmin = np.maximum(box_b[:,0], box_a[0])
+            iymin = np.maximum(box_b[:,1], box_a[1])
+            ixmax = np.minimum(box_b[:,2], box_a[2])
+            iymax = np.minimum(box_b[:,3], box_a[3])
+            iw = np.maximum(ixmax-ixmin, 0.)
+            ih = np.maximum(iymax-iymin, 0.)
+            inters = iw*ih
+            uni = ((box_a[2]-box_a[0])*(box_a[3]-box_a[1])+
+                   (box_b[:,2]-box_b[:,0])*(box_b[:,3]-box_b[:,1])-inters)
+            overlaps = inters/uni
+            for ind in order[i+1:][overlaps>thresh]:
+                probs[ind][k] = 0
+            # for j in range(i+1, total):
+            #     box_b = boxes[order[j]]
+            #     iou = bbox_iou2(box_a, box_b)
+            #     if iou > thresh:
+            #         probs[order[j]][k] = 0
                 # else:
                 #     print(iou)
 
@@ -186,6 +200,8 @@ def get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
         j = g % side
         for k in range(num):
             obj = pred[i, j, k*5+4]
+            if obj <= prob_thresh:
+                continue
             box = pred[i, j, k*5:k*5+4]
             cr = np.array([j, i], dtype=np.float32)
             xy = (box[:2] + cr) / side
@@ -196,8 +212,9 @@ def get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
                 prob = obj * pred[i, j, num * 5 + z]
                 probs[g*num+k][z] = prob if prob > prob_thresh else 0
     if nms:
+        # since = time.time()
         do_nms(boxes, probs, nms_thresh)
-
+        # print("do nms:%.3f"%(time.time()-since))
     # return boxes, probs
 
 
@@ -235,9 +252,9 @@ def get_test_result_1(model_name, image_name, weight, prob_thresh=0.2, nms_thres
     image = cv2.imread(image_name)
     h, w, _ = image.shape
     pred = get_pred_1(image,model_name,weight,mode,use_gpu)
-    # since = time.time()
+    since = time.time()
     boxes, probs, clsinds = get_detection_boxes_1(pred, prob_thresh, nms_thresh)
-    # print('spend {}s'.format(time.time() - since))
+    print('get detection boxes 1 {:.3f}s'.format(time.time() - since))
     output = []
     write = 0
     for i, box in enumerate(boxes):
@@ -264,11 +281,16 @@ def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=
     # print('get pred')
     probs = np.zeros((side * side * num, classes))
     boxes = np.zeros((side * side * num, 4))
+    since = time.time()
     get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+    print("get detection boxe:%.3fs" % (time.time()-since))
     output = []
     for i in range(probs.shape[0]):
         cls = np.argmax(probs[i])
         prob = probs[i][cls]
+        #ind = np.nonzero(probs[i]>0)[0]
+        # if ind.size == 0:
+        #     continue
         if prob > 0:
             box = convert_box(boxes[i],h,w,0)
             out = np.zeros(6)

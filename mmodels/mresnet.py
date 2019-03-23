@@ -196,11 +196,12 @@ class ResNet(nn.Module):
         # x = self.fc(x)
         x = self.conv_end(x)
         x = self.bn_end(x)
-        # x = torch.sigmoid(x)  # 归一化到0-1
+        x = torch.sigmoid(x)  # 归一化到0-1
         # x = x.view(-1,7,7,30)
-        x = x.permute(0, 2, 3, 1)  # (-1,7,7,30)
-        x[:, :, :, :self.num*5] = torch.sigmoid(x[:, :, :, :self.num*5])
-        x[:, :, :, self.num*5:] = F.softmax(x[:, :, :, self.num*5:])
+        x = x.permute(0, 2, 3, 1)  # (-1,14,14,30)
+        # output = x.clone()
+        # output[:, :, :, :self.num*5] = torch.sigmoid(x[:, :, :, :self.num*5])
+        # output[:, :, :, self.num*5:] = F.softmax(x[:, :, :, self.num*5:], -1)
 
         return x
 

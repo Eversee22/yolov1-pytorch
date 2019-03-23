@@ -106,11 +106,18 @@ def imwrite(image, bbox, class_name, cls_ind, prob=None):
 
     img = image
     color = get_color(cls_ind)
-    label = "{}".format(class_name)
-    if prob is not None:
-        label += str(round(prob, 2))
+    label = ''
+    if isinstance(class_name,list) and prob is not None:
+        for i in range(len(class_name)):
+            label += class_name[i]+'{:.2f},'.format(prob[i])
+    elif isinstance(class_name, list):
+        label = ','.join(class_name)
+    elif prob is not None:
+        label = class_name+'{:.2f}'.format(prob)
+    else:
+        label = class_name
     cv2.rectangle(img, c1, c2, color, 2)
-    t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1 , 1)[0]
+    t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN,1,1)[0]
     c2 = c1[0] + t_size[0] + 3, c1[1] + t_size[1] + 4
     cv2.rectangle(img, c1, c2, color, -1)
     cv2.putText(img, label, (c1[0], c1[1] + t_size[1] + 4), cv2.FONT_HERSHEY_PLAIN, 1, [225,255,255], 1);

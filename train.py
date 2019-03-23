@@ -28,9 +28,9 @@ from adabound import adabound
 initial_lr = 0.001
 momentum = 0.9
 weight_decay = 5e-4
-steps = [30, 40]
+steps = [40, 60]
 lr_scale = [0.1, 0.1]
-num_epochs = 1
+num_epochs = 70
 
 d = readcfg('cfg/yolond')
 side = int(d['side'])
@@ -163,7 +163,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs):
 
 model_name = "resnet50"
 if visualize:
-    vis = Visualizer(env=model_name)
+    vis = Visualizer(env="resnet50-70")
 if log:
     if not os.path.exists('log'):
         os.mkdir('log')

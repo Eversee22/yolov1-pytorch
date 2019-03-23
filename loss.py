@@ -144,10 +144,8 @@ class YOLOLoss(nn.Module):
 
     def loss_1(self,preds,labels):
         '''
-
         preds: (tensor) size(batchsize,S,S,Bx5+20) [x,y,w,h,c]
         labels: (tensor) size(batchsize,S,S,Bx5+20)
-
         '''
 
         # print(preds.shape)
@@ -156,9 +154,6 @@ class YOLOLoss(nn.Module):
         N = preds.size(0)
         bbox_size = self.num * 5
         cell_size = bbox_size + 20
-
-        # preds = preds.view(-1, self.side, self.side, cell_size)
-        #labels = labels.view(-1, self.side, self.side, cell_size)
 
         obj_mask = labels[:, :, :, 4] > 0
         noobj_mask = labels[:, :, :, 4] == 0
@@ -316,7 +311,12 @@ class YOLOLoss(nn.Module):
         box_label_response = box_label[obj_response_mask].view(-1, 5)
         response_loss = F.mse_loss(box_pred_response[:, 4], box_label_response_iou[:, 4], reduction="sum")
         xy_loss = F.mse_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
-        wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
+        #xy_loss = F.smooth_l1_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
+        if self.sqrt:
+            wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
+            # wh_loss = F.smooth_l1_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
+        else:
+            wh_loss = F.mse_loss(box_pred_response[:, 2:4], box_label_response[:, 2:4], reduction="sum")
 
         # not response loss
         box_pred_not_response = box_pred[obj_not_response_mask].view(-1, 5)
@@ -326,8 +326,9 @@ class YOLOLoss(nn.Module):
 
         # class loss
         #class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
-        class_loss = nn.NLLLoss(reduction="sum")(torch.log(class_pred), class_label.max(1)[1])
+        class_loss = F.nll_loss(torch.log(class_pred), class_label.max(1)[1], reduction="sum")
 
+        print("xy loss:{:.4f},wh loss:{:.4f},class loss:{:.4f},noobj loss:{:.4f}".format(xy_loss, wh_loss, class_loss,noobj_loss))
         total_loss = self.coord_scale*(xy_loss+wh_loss)+1.*response_loss+not_response_loss+self.noobj_scale*noobj_loss+class_loss
 
         return total_loss / N
