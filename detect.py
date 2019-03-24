@@ -114,7 +114,7 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
 
 
 def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
-    result, image = get_test_result(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
+    result,image = get_test_result(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
     print('get result:%d'%len(result))
     for item in result:
         box = item[:4]
@@ -141,7 +141,7 @@ def arg_parse():
     arg_parser.add_argument("-i", dest="imgn", help="image name", type=str)
     arg_parser.add_argument("-m",dest="mn", default="resnet50", help="model name", type=str)
     arg_parser.add_argument("--mode", dest="mode", default=1, help="model save mode", type=int)
-    arg_parser.add_argument("--nms", dest="nms", default=0.45, help="nms thresh", type=float)
+    arg_parser.add_argument("--nms", dest="nms", default=0.4, help="nms thresh", type=float)
     arg_parser.add_argument("--thresh", dest="thresh", default=0.2, help="confidence thresh", type=float)
     arg_parser.add_argument("weight", nargs=1, help="weight file", type=str)
 

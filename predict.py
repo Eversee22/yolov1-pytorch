@@ -165,15 +165,15 @@ def do_nms(boxes, probs, thresh=0.4):
                 continue
             box_a = boxes[order[i]]
             box_b = boxes[order[i+1:]]
-            ixmin = np.maximum(box_b[:,0], box_a[0])
-            iymin = np.maximum(box_b[:,1], box_a[1])
-            ixmax = np.minimum(box_b[:,2], box_a[2])
-            iymax = np.minimum(box_b[:,3], box_a[3])
+            ixmin = np.maximum(box_b[:,0]-0.5*box_b[:,2], box_a[0]-0.5*box_a[2])
+            iymin = np.maximum(box_b[:,1]-0.5*box_b[:,3], box_a[1]-0.5*box_a[3])
+            ixmax = np.minimum(box_b[:,0]+0.5*box_b[:,2], box_a[0]+0.5*box_a[2])
+            iymax = np.minimum(box_b[:,1]+0.5*box_b[:,3], box_a[1]+0.5*box_a[3])
             iw = np.maximum(ixmax-ixmin, 0.)
             ih = np.maximum(iymax-iymin, 0.)
             inters = iw*ih
-            uni = ((box_a[2]-box_a[0])*(box_a[3]-box_a[1])+
-                   (box_b[:,2]-box_b[:,0])*(box_b[:,3]-box_b[:,1])-inters)
+            uni = ((box_a[2])*(box_a[3])+
+                   (box_b[:,2])*(box_b[:,3])-inters)
             overlaps = inters/uni
             for ind in order[i+1:][overlaps>thresh]:
                 probs[ind][k] = 0
@@ -205,8 +205,10 @@ def get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
             box = pred[i, j, k*5:k*5+4]
             cr = np.array([j, i], dtype=np.float32)
             xy = (box[:2] + cr) / side
-            boxes[g*num + k][:2] = xy - 0.5 * box[2:]
-            boxes[g*num + k][2:] = xy + 0.5 * box[2:]
+            #boxes[g*num + k][:2] = xy - 0.5 * box[2:]
+            #boxes[g*num + k][2:] = xy + 0.5 * box[2:]
+            boxes[g*num + k][:2] = xy
+            boxes[g*num + k][2:] = box[2:]
 
             for z in range(classes):
                 prob = obj * pred[i, j, num * 5 + z]
@@ -279,25 +281,52 @@ def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=
     h, w, _ = image.shape
     pred = get_pred_1(image,model_name,weight,mode,use_gpu)
     # print('get pred')
-    probs = np.zeros((side * side * num, classes))
-    boxes = np.zeros((side * side * num, 4))
+    total = side*side*num
+    probs = np.zeros((total, classes))
+    boxes = np.zeros((total, 4))
     since = time.time()
-    get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+    get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs,True)
     print("get detection boxe:%.3fs" % (time.time()-since))
+    # with open('C/dets.np','wb') as fp:
+    #     absp = os.path.abspath(image_name)
+    #     buff = np.array([len(absp),side,num,classes])
+    #     buff.astype('int32').tofile(fp)
+    #     fp.write(bytes(absp.encode()))
+    #     buff = np.array([])
+    #     buff = np.append(buff,probs)
+    #     buff = np.append(buff,boxes)
+    #     buff.astype('float32').tofile(fp)
     output = []
-    for i in range(probs.shape[0]):
+    for i in range(total):
         cls = np.argmax(probs[i])
         prob = probs[i][cls]
-        #ind = np.nonzero(probs[i]>0)[0]
-        # if ind.size == 0:
-        #     continue
         if prob > 0:
-            box = convert_box(boxes[i],h,w,0)
-            out = np.zeros(6)
-            out[:4] = box
-            out[4] = prob
-            out[5] = cls
+            print('{}:{:.3f}'.format(voc_class_names[cls], prob))
+            box = boxes[i].copy()
+            box[:2] = boxes[i][:2] - 0.5 * boxes[i][2:]
+            box[2:] = boxes[i][:2] + 0.5 * boxes[i][2:]
+            box[[0, 2]] = box[[0, 2]] * w
+            box[[1, 3]] = box[[1, 3]] * h
+            box[0] = 0 if box[0] < 0 else box[0]
+            box[1] = 0 if box[1] < 0 else box[1]
+            box[2] = w - 1 if box[2] > w - 1 else box[2]
+            box[3] = h - 1 if box[3] > h - 1 else box[3]
+            other = np.array([prob, cls])
+            out = np.concatenate((box, other))
             output.append(out)
+    # for i in range(probs.shape[0]):
+    #     cls = np.argmax(probs[i])
+    #     prob = probs[i][cls]
+    #     #ind = np.nonzero(probs[i]>0)[0]
+    #     # if ind.size == 0:
+    #     #     continue
+    #     if prob > 0:
+    #         box = convert_box(boxes[i],h,w,0)
+    #         out = np.zeros(6)
+    #         out[:4] = box
+    #         out[4] = prob
+    #         out[5] = cls
+    #         output.append(out)
     return output, image
 
 
