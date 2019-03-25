@@ -287,10 +287,10 @@ def correct_box(box,h,w):
     boxout[2:] = box[:2] + 0.5 * box[2:]
     boxout[[0, 2]] *= w
     boxout[[1, 3]] *= h
-    boxout[0] = 0 if boxout[0] < 0 else boxout[0]
-    boxout[1] = 0 if boxout[1] < 0 else boxout[1]
-    boxout[2] = w - 1 if boxout[2] > w - 1 else boxout[2]
-    boxout[3] = h - 1 if boxout[3] > h - 1 else boxout[3]
+    if boxout[0] < 0: boxout[0] = 0
+    if boxout[1] < 0: boxout[1] = 0
+    if boxout[2] > w - 1: boxout[2] = w - 1
+    if boxout[3] > h - 1: boxout[3] = h - 1
     return boxout
 
 

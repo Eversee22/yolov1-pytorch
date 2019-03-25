@@ -114,7 +114,7 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
 
 
 def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
-    result,image = get_test_result_1(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
+    result,image = get_test_result(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
     print('get result:%d'%len(result))
     for item in result:
         if len(item) == 6:
