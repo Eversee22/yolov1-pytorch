@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<time.h>
 
 #include "box.h"
 #include "draw.h"
@@ -108,8 +109,10 @@ int main(int argc, char** argv){
 	box* boxes = calloc(total, sizeof(box));
 	fread(boxes, sizeof(box),total,fp);
 	fclose(fp);
+	clock_t since = clock();
 	do_nms_sort(boxes,probs,total,classes,0.5);
-	writeback("detsnmsbyc",probs,boxes,imgname,side,num,classes);
+	printf("do nms sort:%fs\n",(double)(clock()-since)/CLOCKS_PER_SEC);
+	//writeback("detsnmsbyc",probs,boxes,imgname,side,num,classes);
 
     image im = load_image_color(imgname,0,0);
 	printf("w:%d,h:%d\n",im.w,im.h);

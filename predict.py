@@ -143,12 +143,26 @@ def get_detection_boxes_1(pred, prob_thres,nms_thresh, nms=True):
         cls_indices = torch.cat(cls_indices, 0)  # (n,)
 
     if nms:
-        #since = time.time()
+        since = time.time()
         keep = do_nms_1(boxes, probs, nms_thresh)
-        #print("do nms 1:%.3fs" % (time.time()-since))
+        print("do nms 1:%fs" % (time.time()-since))
         return boxes[keep], probs[keep], cls_indices[keep]
     else:
         return boxes, probs, cls_indices
+
+
+def bboxes_iou_np(box_a, box_b):
+    ixmin = np.maximum(box_b[:, 0] - 0.5 * box_b[:, 2], box_a[0] - 0.5 * box_a[2])
+    iymin = np.maximum(box_b[:, 1] - 0.5 * box_b[:, 3], box_a[1] - 0.5 * box_a[3])
+    ixmax = np.minimum(box_b[:, 0] + 0.5 * box_b[:, 2], box_a[0] + 0.5 * box_a[2])
+    iymax = np.minimum(box_b[:, 1] + 0.5 * box_b[:, 3], box_a[1] + 0.5 * box_a[3])
+    iw = np.maximum(ixmax - ixmin, 0.)
+    ih = np.maximum(iymax - iymin, 0.)
+    inters = iw * ih
+    uni = ((box_a[2]) * (box_a[3]) +
+           (box_b[:, 2]) * (box_b[:, 3]) - inters)
+    overlaps = inters / uni
+    return overlaps
 
 
 def do_nms(boxes, probs, thresh=0.4):
@@ -165,16 +179,7 @@ def do_nms(boxes, probs, thresh=0.4):
                 continue
             box_a = boxes[order[i]]
             box_b = boxes[order[i+1:]]
-            ixmin = np.maximum(box_b[:,0]-0.5*box_b[:,2], box_a[0]-0.5*box_a[2])
-            iymin = np.maximum(box_b[:,1]-0.5*box_b[:,3], box_a[1]-0.5*box_a[3])
-            ixmax = np.minimum(box_b[:,0]+0.5*box_b[:,2], box_a[0]+0.5*box_a[2])
-            iymax = np.minimum(box_b[:,1]+0.5*box_b[:,3], box_a[1]+0.5*box_a[3])
-            iw = np.maximum(ixmax-ixmin, 0.)
-            ih = np.maximum(iymax-iymin, 0.)
-            inters = iw*ih
-            uni = ((box_a[2])*(box_a[3])+
-                   (box_b[:,2])*(box_b[:,3])-inters)
-            overlaps = inters/uni
+            overlaps = bboxes_iou_np(box_a,box_b)
             for ind in order[i+1:][overlaps>thresh]:
                 probs[ind][k] = 0
             # for j in range(i+1, total):
@@ -214,9 +219,9 @@ def get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
                 prob = obj * pred[i, j, num * 5 + z]
                 probs[g*num+k][z] = prob if prob > prob_thresh else 0
     if nms:
-        # since = time.time()
+        #since = time.time()
         do_nms(boxes, probs, nms_thresh)
-        # print("do nms:%.3f"%(time.time()-since))
+        #print("do nms:%f"%(time.time()-since))
     # return boxes, probs
 
 
@@ -256,7 +261,7 @@ def get_test_result_1(model_name, image_name, weight, prob_thresh=0.2, nms_thres
     pred = get_pred_1(image,model_name,weight,mode,use_gpu)
     since = time.time()
     boxes, probs, clsinds = get_detection_boxes_1(pred, prob_thresh, nms_thresh)
-    print('get detection boxes 1 {:.3f}s'.format(time.time() - since))
+    print('get detection boxes 1 {:f}s'.format(time.time() - since))
     output = []
     write = 0
     for i, box in enumerate(boxes):
@@ -276,6 +281,32 @@ def get_test_result_1(model_name, image_name, weight, prob_thresh=0.2, nms_thres
     # return boxes, probs, clsinds
 
 
+def correct_box(box,h,w):
+    boxout = box.copy()
+    boxout[:2] = box[:2] - 0.5 * box[2:]
+    boxout[2:] = box[:2] + 0.5 * box[2:]
+    boxout[[0, 2]] *= w
+    boxout[[1, 3]] *= h
+    boxout[0] = 0 if boxout[0] < 0 else boxout[0]
+    boxout[1] = 0 if boxout[1] < 0 else boxout[1]
+    boxout[2] = w - 1 if boxout[2] > w - 1 else boxout[2]
+    boxout[3] = h - 1 if boxout[3] > h - 1 else boxout[3]
+    return boxout
+
+
+def correct_boxes(boxes,h,w):
+    boxesout = boxes.copy()
+    boxesout[:, :2] = boxes[:, :2] - 0.5 * boxes[:, 2:]
+    boxesout[:, 2:] = boxes[:, :2] + 0.5 * boxes[:, 2:]
+    boxesout[:, [0,2]] *= w
+    boxesout[:, [1,3]] *= h
+    boxesout[boxesout[:,0]<0, 0] = 0
+    boxesout[boxesout[:,1]<0, 1] = 0
+    boxesout[boxesout[:,2]>w-1, 2] = w-1
+    boxesout[boxesout[:,3]>h-1, 3] = h-1
+    return boxesout
+
+
 def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1, use_gpu=True):
     image = cv2.imread(image_name)
     h, w, _ = image.shape
@@ -286,7 +317,7 @@ def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=
     boxes = np.zeros((total, 4))
     since = time.time()
     get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs,True)
-    print("get detection boxe:%.3fs" % (time.time()-since))
+    print("get detection boxe:%fs" % (time.time()-since))
     # with open('C/dets.np','wb') as fp:
     #     absp = os.path.abspath(image_name)
     #     buff = np.array([len(absp),side,num,classes])
@@ -297,23 +328,46 @@ def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=
     #     buff = np.append(buff,boxes)
     #     buff.astype('float32').tofile(fp)
     output = []
-    for i in range(total):
-        cls = np.argmax(probs[i])
-        prob = probs[i][cls]
-        if prob > 0:
-            print('{}:{:.3f}'.format(voc_class_names[cls], prob))
-            box = boxes[i].copy()
-            box[:2] = boxes[i][:2] - 0.5 * boxes[i][2:]
-            box[2:] = boxes[i][:2] + 0.5 * boxes[i][2:]
-            box[[0, 2]] = box[[0, 2]] * w
-            box[[1, 3]] = box[[1, 3]] * h
-            box[0] = 0 if box[0] < 0 else box[0]
-            box[1] = 0 if box[1] < 0 else box[1]
-            box[2] = w - 1 if box[2] > w - 1 else box[2]
-            box[3] = h - 1 if box[3] > h - 1 else box[3]
-            other = np.array([prob, cls])
-            out = np.concatenate((box, other))
-            output.append(out)
+    maxind = np.argmax(probs, 1)
+    maxprob = np.max(probs, 1)
+    mask = maxprob > 0
+    if np.sum(mask) == 0:
+        return output
+    maskbox = boxes[mask]
+    maskprob = maxprob[mask]
+    maskind = maxind[mask]
+
+    mmord = np.argsort(-maskprob)
+    keep = {}
+    while mmord.size > 0:
+        i = mmord[0]
+        keep[i] = []
+        if mmord.size == 1:
+            break
+        ovs = bboxes_iou_np(maskbox[i], maskbox[mmord[1:]])
+        mask = ovs > 0.5
+        keep[i] = mmord[1:][mask]
+        mmord = mmord[1:][1-mask==1]
+
+    for i in keep:
+        keepind = []
+        keepprob = []
+        keepind.append(maskind[i])
+        keepprob.append(maskprob[i])
+        for j in keep[i]:
+            keepind.append(maskind[j])
+            keepprob.append(maskprob[j])
+        output.append([correct_box(maskbox[i],h,w),keepprob,keepind])
+    #output = np.concatenate((maskbox, maskprob, maskind), 1)  # (n,6)
+    # for i in range(total):
+    #     cls = np.argmax(probs[i])
+    #     prob = probs[i][cls]
+    #     if prob > 0:
+    #         print('{}:{:.3f}'.format(voc_class_names[cls], prob))
+    #         box = correct_box(boxes[i],h,w)
+    #         other = np.array([prob, cls])
+    #         out = np.concatenate((box, other))
+    #         output.append(out)
     # for i in range(probs.shape[0]):
     #     cls = np.argmax(probs[i])
     #     prob = probs[i][cls]

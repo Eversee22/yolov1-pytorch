@@ -107,11 +107,14 @@ def imwrite(image, bbox, class_name, cls_ind, prob=None):
     img = image
     color = get_color(cls_ind)
     label = ''
-    if isinstance(class_name,list) and prob is not None:
-        for i in range(len(class_name)):
-            label += class_name[i]+'{:.2f},'.format(prob[i])
-    elif isinstance(class_name, list):
-        label = ','.join(class_name)
+    if isinstance(class_name,list):
+        if prob is not None:
+            nlen = len(class_name)
+            for i in range(nlen-1):
+                label += class_name[i]+'{:.2f},'.format(prob[i])
+            label += class_name[nlen-1] + '{:.2f}'.format(prob[nlen-1])
+        else:
+            label = ','.join(class_name)
     elif prob is not None:
         label = class_name+'{:.2f}'.format(prob)
     else:

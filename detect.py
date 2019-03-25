@@ -114,20 +114,22 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
 
 
 def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
-    result,image = get_test_result(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
+    result,image = get_test_result_1(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
     print('get result:%d'%len(result))
     for item in result:
-        box = item[:4]
-        prob = float(item[4])
-        cls_ind = int(item[5])
-        if isinstance(cls_ind, np.ndarray):
+        if len(item) == 6:
+            box = item[:4]
+            prob = float(item[4])
+            cls_ind = int(item[5])
+            cls_names = voc_class_names[cls_ind]
+        elif len(item) == 3:
+            box = item[0]
+            prob = item[1]
+            cls_ind = item[2]
             cls_names = [voc_class_names[i] for i in cls_ind]
             prob = [p for p in prob]
             cls_ind = cls_ind[0]
-        else:
-            cls_names = voc_class_names[cls_ind]
-
-        image = imwrite(image,box,cls_names,cls_ind,prob)
+        image = imwrite(image, box, cls_names, cls_ind, prob)
 
     cv2.imshow("{}".format(image_name), image)
     cv2.imwrite('bbox_%s.png' % image_name.split('/')[-1].split('.')[0], image)
