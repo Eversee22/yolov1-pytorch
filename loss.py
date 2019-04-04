@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from util import readcfg
+
+d = readcfg('cfg/yolond')
+softmax = int(d['softmax'])
 
 
 class YOLOLoss(nn.Module):
@@ -171,7 +175,9 @@ class YOLOLoss(nn.Module):
         # compute not containing loss
         noobj_pred = preds[noobj_mask].view(-1, cell_size)
         noobj_label = labels[noobj_mask].view(-1, cell_size)
-        noobj_pred_mask = torch.ByteTensor(noobj_pred.size()).zero_()
+        noobj_pred_mask = torch.cuda.ByteTensor(noobj_pred.size()) if self.use_gpu else torch.ByteTensor(
+            noobj_pred.size())
+        noobj_pred_mask.zero_()
         for i in range(self.num):
             noobj_pred_mask[:, i * 5 + 4] = 1
         noobj_pred_c = noobj_pred[noobj_pred_mask]
@@ -179,9 +185,11 @@ class YOLOLoss(nn.Module):
         noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
 
         # object containing loss
-        obj_response_mask = torch.cuda.ByteTensor(box_label.size())
+        obj_response_mask = torch.cuda.ByteTensor(box_label.size()) if self.use_gpu else torch.ByteTensor(
+            box_label.size())
         obj_response_mask.zero_()
-        obj_not_response_mask = torch.cuda.ByteTensor(box_label.size())
+        obj_not_response_mask = torch.cuda.ByteTensor(box_label.size()) if self.use_gpu else torch.ByteTensor(
+            box_label.size())
         obj_not_response_mask.zero_()
         box_label_iou = torch.zeros(box_label.size())
         if self.use_gpu:
@@ -189,13 +197,13 @@ class YOLOLoss(nn.Module):
 
         s = 1/self.side
         for i in range(0, box_label.size(0), self.num):
-            box1 = box_pred[i:i + self.num]
-            box1_coord = torch.FloatTensor(box1.size())  # Variable
+            box1 = box_pred[i:i+self.num]
+            box1_coord = torch.FloatTensor(box1.size())
             box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
             box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
 
             box2 = box_label[i].view(-1, 5)
-            box2_coord = torch.FloatTensor(box2.size())  # Variable
+            box2_coord = torch.FloatTensor(box2.size())
             box2_coord[:, :2] = box2[:, :2] * s - 0.5 * box2[:, 2:4]
             box2_coord[:, 2:4] = box2[:, :2] * s + 0.5 * box2[:, 2:4]
             iou = self.compute_iou(box1_coord[:, :4], box2_coord[:, :4])
@@ -203,14 +211,13 @@ class YOLOLoss(nn.Module):
             # assert iou.shape[0] == self.num
 
             max_iou, max_index = iou.max(0)
-            # max_index = max_index.data.cuda()
 
             obj_response_mask[i + max_index] = 1
             # obj_not_response_mask[i + 1 - max_index] = 1
             obj_not_response_mask[i:i + self.num] = 1
             obj_not_response_mask[i + max_index] = 0
 
-            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data.cuda()
+            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data.cuda()  # no grad
 
         # response loss
         box_pred_response = box_pred[obj_response_mask].view(-1, 5)
@@ -264,7 +271,9 @@ class YOLOLoss(nn.Module):
         # compute not containing loss
         noobj_pred = preds[noobj_mask].view(-1, cell_size)
         noobj_label = labels[noobj_mask].view(-1, cell_size)
-        noobj_pred_mask = torch.ByteTensor(noobj_pred.size()).zero_()
+        noobj_pred_mask = torch.cuda.ByteTensor(noobj_pred.size()) if self.use_gpu else torch.ByteTensor(
+            noobj_pred.size())
+        noobj_pred_mask.zero_()
         for i in range(self.num):
             noobj_pred_mask[:, i * 5 + 4] = 1
         noobj_pred_c = noobj_pred[noobj_pred_mask]
@@ -272,9 +281,11 @@ class YOLOLoss(nn.Module):
         noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
 
         # object containing loss
-        obj_response_mask = torch.cuda.ByteTensor(box_label.size())
+        obj_response_mask = torch.cuda.ByteTensor(box_label.size()) if self.use_gpu else torch.ByteTensor(
+            box_label.size())
         obj_response_mask.zero_()
-        obj_not_response_mask = torch.cuda.ByteTensor(box_label.size())
+        obj_not_response_mask = torch.cuda.ByteTensor(box_label.size()) if self.use_gpu else torch.ByteTensor(
+            box_label.size())
         obj_not_response_mask.zero_()
         box_label_iou = torch.zeros(box_label.size())
         if self.use_gpu:
@@ -311,10 +322,12 @@ class YOLOLoss(nn.Module):
         box_label_response = box_label[obj_response_mask].view(-1, 5)
         response_loss = F.mse_loss(box_pred_response[:, 4], box_label_response_iou[:, 4], reduction="sum")
         xy_loss = F.mse_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
-        #xy_loss = F.smooth_l1_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
+        # xy_loss = F.smooth_l1_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
         if self.sqrt:
-            wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
+            # wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
             # wh_loss = F.smooth_l1_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
+            scale = 2. * torch.sigmoid(torch.pow(box_pred_response[:, 2:4] / box_label_response[:, 2:4] - 1., 2))
+            wh_loss = torch.sum(scale * torch.pow(box_pred_response[:, 2:4] - box_label_response[:, 2:4], 2))
         else:
             wh_loss = F.mse_loss(box_pred_response[:, 2:4], box_label_response[:, 2:4], reduction="sum")
 
@@ -325,11 +338,12 @@ class YOLOLoss(nn.Module):
         not_response_loss = F.mse_loss(box_pred_not_response[:, 4], box_label_not_response[:, 4], reduction="sum")
 
         # class loss
-        #class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
-        class_loss = F.nll_loss(torch.log(class_pred), class_label.max(1)[1], reduction="sum")
-
+        if softmax:
+            class_loss = F.cross_entropy(class_pred, class_label.max(1)[1], reduction="sum")
+        else:
+            class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
         print("xy loss:{:.4f},wh loss:{:.4f},class loss:{:.4f},noobj loss:{:.4f}".format(xy_loss, wh_loss, class_loss,noobj_loss))
-        total_loss = self.coord_scale*(xy_loss+wh_loss)+1.*response_loss+not_response_loss+self.noobj_scale*noobj_loss+class_loss
+        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+self.noobj_scale*noobj_loss+class_loss
 
         return total_loss / N
 
@@ -341,6 +355,6 @@ if __name__ == '__main__':
     target = torch.rand(pred.shape).cuda()
     loss = yololoss(pred, target)
     # loss_1 =yololoss.loss(pred,target)
-    print(loss)
+    print(loss)  # 181.4906
 
 

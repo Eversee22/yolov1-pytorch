@@ -24,7 +24,7 @@ def parse_args():
     Parse input arguments
     """
     parser = argparse.ArgumentParser(description='Re-evaluate results')
-    parser.add_argument('output_dir', nargs=1, help='results directory',
+    parser.add_argument('output_dir', nargs=1, default='results',help='results directory',
                         type=str)
     parser.add_argument('--voc_dir', dest='voc_dir', default='/home/blacksun2/github/darknet-2016-11-22/VOCdevkit', type=str)
     parser.add_argument('--year', dest='year', default='2007', type=str)
@@ -80,18 +80,19 @@ def do_python_eval(devkit_path, year, image_set, classes, output_dir = 'results'
         with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
             cPickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
     print('Mean AP = {:.4f}'.format(np.mean(aps)))
-    print('~~~~~~~~')
+    # print('~~~~~~~~')
     print('Results:')
-    for ap in aps:
-        print('{:.3f}'.format(ap))
-    print('{:.3f}'.format(np.mean(aps)))
-    print('~~~~~~~~')
-    print('')
-    print('--------------------------------------------------------------')
-    print('Results computed with the **unofficial** Python eval code.')
-    print('Results should be very close to the official MATLAB eval code.')
-    print('-- Thanks, The Management')
-    print('--------------------------------------------------------------')
+    print('{:.3f}'.format(np.mean(aps)),end=',')
+    for ap in aps[:-1]:
+        print('{:.3f}'.format(ap),end=',')
+    print('{:.3f}'.format(aps[-1]))
+
+    # print('~~~~~~~~')
+    # print('--------------------------------------------------------------')
+    # print('Results computed with the **unofficial** Python eval code.')
+    # print('Results should be very close to the official MATLAB eval code.')
+    # print('-- Thanks, The Management')
+    # print('--------------------------------------------------------------')
 
 
 if __name__ == '__main__':

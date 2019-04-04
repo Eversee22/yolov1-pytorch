@@ -98,7 +98,7 @@ int main(int argc, char** argv){
 	char* imgname = calloc(nlen+1,sizeof(char));
 	fread(imgname,sizeof(char),nlen,fp);
 	imgname[nlen] = '\0';
-	printf("image path:%s,side:%d,num:%d,classes:%d\n",imgname,side,num,classes);
+	printf("image path:%s\nside:%d,num:%d,classes:%d\n",imgname,side,num,classes);
 	unsigned int total = side*side*num;
 	float** probs = calloc(total,sizeof(float*));
 	for(int i=0;i<total;++i){

@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-# import os
+import os
 import torch
 import cv2
 import numpy as np
@@ -181,7 +181,7 @@ class VocDataset(Dataset):
         if random.random() < 0.5:
             height, width, c = bgr.shape
             after_shfit_image = np.zeros((height, width, c), dtype=bgr.dtype)
-            after_shfit_image[:, :, :] = (104, 117, 123)  # bgr
+            after_shfit_image[:, :, :] = (120, 120, 120)  # bgr
             shift_x = random.uniform(-width * 0.2, width * 0.2)
             shift_y = random.uniform(-height * 0.2, height * 0.2)
             # print(bgr.shape,shift_x,shift_y)
@@ -292,7 +292,7 @@ if __name__ == '__main__':
 
     voc_class_names = load_classes('data/voc.names')
     # colors = pkl.load(open("pallete", "rb"))
-    voc_dataset = VocDataset('data/train.txt', augmentation=True)
+    voc_dataset = VocDataset('data/train07.txt', augmentation=True)
     dlen = len(voc_dataset)
 
     # plt.ion()
@@ -309,6 +309,9 @@ if __name__ == '__main__':
         boxes = sample["bbox"]
         classes = sample["classes"]
         h,w,_ = image.shape
+        dir = 'gt'
+        if not os.path.exists(dir):
+            os.mkdir(dir)
 
         for j in range(len(boxes)):
             cls_ind = classes[j].item()
@@ -322,10 +325,12 @@ if __name__ == '__main__':
         # cv2.imwrite("data/temp/pic{}.jpg".format(i+1),image)
         # plt.pause(1)
         cv2.imshow('pic', image)
-        key = cv2.waitKey(1)
+        key = cv2.waitKey(0)
         if key & 0xFF == ord('q'):
             cv2.destroyWindow('pic')
             break
+        elif key & 0xFF == ord('s'):
+            cv2.imwrite('{}/pic_gt{}'.format(dir,idx),image)
         time.sleep(1)
 
 

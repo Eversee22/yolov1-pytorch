@@ -17,7 +17,7 @@ endif
 CFLAGS+=$(OPTS)
 
 ifeq ($(OPENCV),1)
-COMMON+= -DOPENCV
+COMMON+= -DOPENCV #define Macro(-D)
 CFLAG+= -DOPENCV
 LDFLAGS+= `pkg-config --libs opencv`
 COMMON+= `pkg-config --cflags opencv`

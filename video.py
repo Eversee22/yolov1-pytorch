@@ -190,7 +190,7 @@ if __name__ == '__main__':
             fps = frames / (time.time()-start)
             label='fps:{:.3f}'.format(fps)
             # t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1, 1)[0]
-            cv2.putText(frame, label, (1, 10), cv2.FONT_HERSHEY_PLAIN, 1, [0, 255, 255], 1);
+            cv2.putText(frame, label, (1, 10), cv2.FONT_HERSHEY_PLAIN, 1, [0, 255, 255], 1)
             cv2.imshow("frame", frame)
             key = cv2.waitKey(1)
             if key & 0xFF == ord('q'):

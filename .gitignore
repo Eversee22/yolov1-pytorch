@@ -1,12 +1,13 @@
 backup/
 local/
-__pycache__/
 results/
 utils/
 log/
 imgs/
+weights/
+.idea
 ./*.png
 ./*.jpg
 *.txt
-.idea
 *.pyc
+
