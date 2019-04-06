@@ -130,11 +130,11 @@ def AddExtraLayersVGG(in_channels=512,
                 layers.append(nn.Dropout())
 
         # extra layers
-        # layers += [nn.Conv2d(in_channels, 256, 1), nn.BatchNorm2d(256), nn.ReLU(inplace=True)]
-        # layers += [nn.Conv2d(256, 512, 3,2,1), nn.BatchNorm2d(512), nn.ReLU(inplace=True)]
+        layers += [nn.Conv2d(in_channels, 256, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU(inplace=True)]
+        layers += [nn.Conv2d(256, 512, 3, 1, 1, bias=False), nn.BatchNorm2d(512), nn.ReLU(inplace=True)]
 
         # output
-        # in_channels = 512
+        in_channels = 512
         # layers += [nn.Conv2d(in_channels, 256, 3,1,1), nn.BatchNorm2d(256), nn.ReLU(inplace=True)]
         # layers.append(nn.Conv2d(256, num * 5 + classes,1))
         layers.append(nn.Conv2d(in_channels, num * 5 + classes, 3, 1, 1, bias=not bn))
@@ -163,13 +163,13 @@ def get_model_ft(name, pretrained=True):
 
     elif name == "vgg16_bn":
         model_ft = mvgg.vgg16_bn(pretrained=pretrained, side=side, num=num, classes=classes)
-        num_ftrs = model_ft.classifier[0].in_features
+        # num_ftrs = model_ft.classifier[0].in_features
         model_ft.classifier = AddExtraLayersVGG(dilated=False)
 
     elif name == "resnet50":
         models.resnet50()
         model_ft = mresnet.resnet50(num=num, side=side, num_classes=classes,
-                                    softmax=softmax, detnet_block=True, downsample=False)
+                                    softmax=softmax, detnet_block=False, downsample=True)
         if pretrained:
             resnet = models.resnet50(pretrained=True)
             org_dict = resnet.state_dict()

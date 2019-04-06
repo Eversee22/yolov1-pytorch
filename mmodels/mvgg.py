@@ -52,7 +52,8 @@ class VGG(nn.Module):
 
         # added
         x = torch.sigmoid(x)
-        x = x.view(-1, self.num * 5 + self.classes, self.side, self.side)
+        # assert x.shape[1] == self.num * 5 + self.classes and x.shape[2] == self.side
+        # x = x.view(-1, self.num * 5 + self.classes, self.side, self.side)
         x = x.permute(0, 2, 3, 1)
 
         return x

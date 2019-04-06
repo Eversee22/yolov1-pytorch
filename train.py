@@ -29,15 +29,15 @@ import sys
 initial_lr = 0.001
 momentum = 0.9
 weight_decay = 5e-4
-steps = [30, 45]
+steps = [30, 40]
 lr_scale = [0.1, 0.1]
-num_epochs = 60
+num_epochs = 50
 
 d = readcfg('cfg/yolond')
 side = int(d['side'])
 num = int(d['num'])
 classes = int(d['classes'])
-sqrt = int(d['sqrt'])
+sqrt = 1
 noobj_scale = float(d['noobj_scale'])
 coord_scale = float(d['coord_scale'])
 object_scale = float(d['object_scale'])
@@ -58,7 +58,7 @@ data_transforms = transforms.Compose([
     # transforms.ToTensor(),
 ])
 
-train_dataset = VocDataset('data/train07.txt', side=side, num=num, input_size=inp_size, augmentation=True, transform=data_transforms)
+train_dataset = VocDataset('data/train07+12.txt', side=side, num=num, input_size=inp_size, augmentation=True, transform=data_transforms)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 # train_dataset_size = len(train_dataset)
 train_loader_size = len(train_dataloader)
@@ -78,6 +78,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dyn=False):
     lr = initial_lr
     s = 0
     prevloss = -1
+    avg_loss = -1
 
     if dyn:
         print('using dynamic learning rate')
@@ -98,7 +99,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dyn=False):
         #     lr = scheduler.get_lr()
         if scheduler is not None and not dyn:
             scheduler.step()
-        # if scheduler is not None:
             lr = scheduler.get_lr()
 
         print('Epoch {}/{}, lr:{}'.format(epoch + 1, num_epochs, lr))
@@ -118,37 +118,44 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dyn=False):
             loss.backward()
             optimizer.step()
 
-            if prevloss == -1:
+            if avg_loss < 0:
+                avg_loss = loss.item()
+            avg_loss = avg_loss*0.98+loss.item()*0.02
+
+            if prevloss < 0:
                 prevloss = running_loss
                 if visualize:
                     vis.plot_one(running_loss, 'train', 4, 'iter')
                     if vischange:
-                        vis.plot_one(0,'change',4,'iter','rate')
+                        vis.plot_one(0, 'change', 4, 'iter', 'rate')
                         diff = 4
 
             if (i+1) % 5 == 0 or i+1 == train_loader_size:
+                # avg_loss = running_loss / (i + 1)
                 if visualize:
                     step = 5
                     if train_loader_size%5 and (i+6)>train_loader_size and (i+1)<train_loader_size:
                         step = train_loader_size % 5
-                    vis.plot_one(running_loss/(i+1), 'train', step, 'iter')
+                    vis.plot_one(avg_loss, 'train', step, 'iter')
                     if vischange:
-                        change = prevloss-running_loss/(i+1)
-                        vis.plot_one(change/diff,'change',step,'iter','rate')
-                        prevloss = running_loss/(i+1)
+                        change = prevloss-avg_loss
+                        vis.plot_one(change / diff, 'change', step, 'iter', 'rate')
+                        prevloss = avg_loss
                         diff = step
-                print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f, average_loss: %.4f'
-                      % (epoch + 1, num_epochs, i + 1, train_loader_size, loss.item(), running_loss / (i + 1)))
+                print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f, average_loss: %.4f' %
+                      (epoch+1, num_epochs, i+1, train_loader_size, loss.item(), avg_loss))
                 if log:
-                    logfile.write('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f, average_loss: %.4f\n'
-                          % (epoch + 1, num_epochs, i + 1, train_loader_size, loss.item(), running_loss / (i + 1)))
+                    logfile.write('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f, average_loss: %.4f\n' %
+                                  (epoch+1, num_epochs, i+1, train_loader_size, loss.item(), avg_loss))
+
+        # print('\nEpoch[{}], average loss: {:.4f}\n'.format(epoch+1, running_loss/train_loader_size))
+        # if log:
+        #     logfile.write('Epoch[{}], average loss: {:.4f}\n'.format(epoch+1, running_loss/train_loader_size))
 
         if s < len(steps) and (epoch+1) == steps[s]:
             print("save {}, step {}, learning rate {}".format(model_name, epoch+1, lr))
-            torch.save({'epoch':epoch, 'lr':lr, 'model': model.state_dict()}, "backup/{}_step_{}.pth".format(model_name, epoch+1))
+            torch.save({'epoch': epoch, 'lr': lr, 'model': model.state_dict()}, "backup/{}_step_{}.pth".format(model_name, epoch+1))
             s += 1
-        # if log and train_loader_size % 5 != 0:
-        #     logfile.write('epoch[{}/{}], average loss:{}\n'.format(epoch+1, num_epochs, running_loss/train_loader_size))
 
         # validation
         if validate:
