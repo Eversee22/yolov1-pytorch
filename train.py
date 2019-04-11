@@ -37,7 +37,7 @@ d = readcfg('cfg/yolond')
 side = int(d['side'])
 num = int(d['num'])
 classes = int(d['classes'])
-sqrt = 1
+sqrt = int(d['sqrt'])
 noobj_scale = float(d['noobj_scale'])
 coord_scale = float(d['coord_scale'])
 object_scale = float(d['object_scale'])
@@ -58,7 +58,7 @@ data_transforms = transforms.Compose([
     # transforms.ToTensor(),
 ])
 
-train_dataset = VocDataset('data/train07+12.txt', side=side, num=num, input_size=inp_size, augmentation=True, transform=data_transforms)
+train_dataset = VocDataset('data/train07.txt', side=side, num=num, input_size=inp_size, augmentation=True, transform=data_transforms)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 # train_dataset_size = len(train_dataset)
 train_loader_size = len(train_dataloader)

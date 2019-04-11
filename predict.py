@@ -1,11 +1,11 @@
 import torch
 # import torch.nn.functional as F
-from util import readcfg, bbox_iou, bbox_iou2,load_classes
+from util import readcfg, load_classes
 from ftd_model import get_model_ft
 import numpy as np
 import cv2
 import time
-import os
+import os,sys
 from tqdm import tqdm
 from util import convert_box
 
@@ -15,6 +15,7 @@ num = int(d['num'])
 classes = int(d['classes'])
 inp_size = int(d['inp_size'])
 softmax = int(d['softmax'])
+sqrt = int(d['sqrt'])
 voc_class_names = load_classes('data/voc.names')
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -149,7 +150,7 @@ def get_detection_boxes_1(pred, prob_thres,nms_thresh, nms=True):
         cls_indices = torch.cat(cls_indices, 0)  # (n,)
 
     if nms:
-        since = time.time()
+        # since = time.time()
         keep = do_nms_1(boxes, probs, nms_thresh)
         # print("do nms 1:%fs" % (time.time()-since))
         return boxes[keep], probs[keep], cls_indices[keep]
@@ -171,6 +172,25 @@ def bboxes_iou_np(box_a, box_b):
     return overlaps
 
 
+def bbox_iou_np(box_a, box_b):
+    '''
+    box1,box2: [xmin,ymin,xmax,ymax], value:0.0~1.0
+    '''
+    ixmin = np.maximum(box_a[0] - 0.5 * box_b[2], box_a[0] - 0.5 * box_a[2])
+    iymin = np.maximum(box_b[1] - 0.5 * box_b[3], box_a[1] - 0.5 * box_a[3])
+    ixmax = np.minimum(box_b[0] + 0.5 * box_b[2], box_a[0] + 0.5 * box_a[2])
+    iymax = np.minimum(box_b[1] + 0.5 * box_b[3], box_a[1] + 0.5 * box_a[3])
+
+    iw = np.maximum(ixmax - ixmin, 0.)
+    ih = np.maximum(iymax - iymin, 0.)
+    inter = iw * ih
+    uni = ((box_a[2]) * (box_a[3]) +
+           (box_b[2]) * (box_b[3]) - inter)
+    iou = inter / uni
+
+    return iou
+
+
 def do_nms(boxes, probs, thresh=0.4):
     """
     boxes: [side*side*num,4]
@@ -179,7 +199,7 @@ def do_nms(boxes, probs, thresh=0.4):
     """
     total = side*side*num
     for k in range(classes):
-        order = np.argsort(probs[:, k])[::-1]  # descending order
+        order = np.argsort(probs[:, k])[::-1] # descending order
         for i in range(total):
             if probs[order[i]][k] == 0:
                 continue
@@ -189,11 +209,9 @@ def do_nms(boxes, probs, thresh=0.4):
             probs[order[i+1:][overlaps>thresh], k] = 0
             # for j in range(i+1, total):
             #     box_b = boxes[order[j]]
-            #     iou = bbox_iou2(box_a, box_b)
+            #     iou = bbox_iou_np(box_a, box_b)
             #     if iou > thresh:
             #         probs[order[j]][k] = 0
-                # else:
-                #     print(iou)
 
 
 def get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
@@ -218,14 +236,57 @@ def get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
             box = pred[i, j, k*5:k*5+4]
             cr = np.array([j, i], dtype=np.float32)
             xy = (box[:2] + cr) / side
-            #boxes[g*num + k][:2] = xy - 0.5 * box[2:]
-            #boxes[g*num + k][2:] = xy + 0.5 * box[2:]
             boxes[g*num + k][:2] = xy
+            # if sqrt:
+            #     boxes[g * num + k][2:] = np.square(box[2:])
+            # else:
             boxes[g*num + k][2:] = box[2:]
 
-            for z in range(classes):
-                prob = obj * pred[i, j, num * 5 + z]
-                probs[g*num+k][z] = prob if prob > prob_thresh else 0
+            prob = obj*pred[i, j, num*5:]
+            mask = prob > prob_thresh
+            probs[g*num+k, mask] = prob[mask]
+            # probs[g*num+k, prob != prob.max()] = 0
+            # for z in range(classes):
+            #     prob = obj * pred[i, j, num * 5 + z]
+            #     probs[g*num+k][z] = prob if prob > prob_thresh else 0
+    if nms:
+        # since = time.time()
+        do_nms(boxes, probs, nms_thresh)
+        # print("do nms:%f"%(time.time()-since))
+    # return boxes, probs
+
+
+def get_detection_boxes2(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
+    """
+    pred: (1, side, side, num*(5+20))
+    return: probs, boxes
+    """
+    pred = pred.data.squeeze(0)
+    pred = pred.view(side, side, num, 5+classes)
+    if softmax:
+        pred[:, :, :, 5:] = torch.softmax(pred[:, :, :, 5:], 2)
+    pred = pred.numpy()
+    # probs = np.zeros((side*side*num, classes))
+    # boxes = np.zeros((side*side*num, 4))
+
+    for i in range(side):
+        for j in range(side):
+            for k in range(num):
+                obj = pred[i, j, k, 4]
+                if obj <= prob_thresh:
+                    continue
+                box = pred[i, j, k, :4]
+                cr = np.array([j, i], dtype=np.float32)
+                xy = (box[:2] + cr) / side
+                ind = (i*side+j)*num+k
+                boxes[ind, :2] = xy
+                # if sqrt:
+                #     boxes[ind, 2:] = np.square(box[2:])
+                # else:
+                boxes[ind, 2:] = box[2:]
+                prob = obj * pred[i, j, k, 5:]
+                mask = prob > prob_thresh
+                probs[ind, mask] = prob[mask]
     if nms:
         #since = time.time()
         do_nms(boxes, probs, nms_thresh)
@@ -343,38 +404,45 @@ def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=
     #     buff = np.append(buff,probs)
     #     buff = np.append(buff,boxes)
     #     buff.astype('float32').tofile(fp)
+    postdeal = False
     output = []
     maxind = np.argmax(probs, 1)
     maxprob = np.max(probs, 1)
     mask = maxprob > 0
     if np.sum(mask) == 0:
         return output
+
     maskbox = boxes[mask]
     maskprob = maxprob[mask]
     maskind = maxind[mask]
 
-    mmord = np.argsort(-maskprob)
-    keep = {}
-    while mmord.size > 0:
-        i = mmord[0]
-        keep[i] = []
-        if mmord.size == 1:
-            break
-        ovs = bboxes_iou_np(maskbox[i], maskbox[mmord[1:]])
-        mask = ovs > 0.5
-        keep[i] = mmord[1:][mask]
-        mmord = mmord[1:][1-mask==1]
+    if postdeal:
+        mmord = np.argsort(-maskprob)
+        keep = {}
+        while mmord.size > 0:
+            i = mmord[0]
+            keep[i] = []
+            if mmord.size == 1:
+                break
+            ovs = bboxes_iou_np(maskbox[i], maskbox[mmord[1:]])
+            mask = ovs > 0.5
+            keep[i] = mmord[1:][mask]
+            mmord = mmord[1:][1-mask==1]
 
-    for i in keep:
-        keepind = []
-        keepprob = []
-        keepind.append(maskind[i])
-        keepprob.append(maskprob[i])
-        for j in keep[i]:
-            keepind.append(maskind[j])
-            keepprob.append(maskprob[j])
-        output.append([correct_box(maskbox[i],h,w),keepprob,keepind])
-    #output = np.concatenate((maskbox, maskprob, maskind), 1)  # (n,6)
+        for i in keep:
+            keepind = []
+            keepprob = []
+            keepind.append(maskind[i])
+            keepprob.append(maskprob[i])
+            for j in keep[i]:
+                keepind.append(maskind[j])
+                keepprob.append(maskprob[j])
+            output.append([correct_box(maskbox[i],h,w),keepprob,keepind])
+    else:
+        maskbox = correct_boxes(maskbox,h,w)
+        maskprob = maxprob[mask].reshape(-1, 1)
+        maskind = maxind[mask].reshape(-1, 1)
+        output = np.concatenate((maskbox, maskprob, maskind), 1)  # (n,6)
     # for i in range(total):
     #     cls = np.argmax(probs[i])
     #     prob = probs[i][cls]
@@ -405,6 +473,14 @@ def predict_eval_1(preds, model_name, image_name, weight, mode=1, use_gpu=True):
     model = load_model(model_name, weight, mode, use_gpu)
     if use_gpu:
         model.cuda()
+
+    # if not os.path.exists('results'):
+    #     os.mkdir('results')
+    # base = 'results/comp4_det_test'
+    # fps = []
+    # for k in range(classes):
+    #     fps.append(open('%s_%s' % (base, voc_class_names[k]), 'w'))
+
     if isinstance(image_name, list):
         for imid in tqdm(image_name):
             image = cv2.imread(os.path.join(root_dir, imid))
@@ -413,13 +489,21 @@ def predict_eval_1(preds, model_name, image_name, weight, mode=1, use_gpu=True):
             # pred = pred.cpu()
             boxes, probs, cls_inds = get_detection_boxes_1(pred, 0.1, 0.5)
             for i, box in enumerate(boxes):
-                x1 = box[0] * w
-                x2 = box[2] * w
-                y1 = box[1] * h
-                y2 = box[3] * h
+                x1, y1, x2, y2 = convert_box(box,h,w,3)
                 cls_ind = int(cls_inds[i])
                 prob = float(probs[i])
                 preds[voc_class_names[cls_ind]].append([imid, prob, x1, y1, x2, y2])
+
+            # for i, box in enumerate(boxes):
+            #     prob = float(probs[i])
+            #     # print(prob)
+            #     if prob == 0:
+            #         continue
+            #     x1, y1, x2, y2 = convert_box(box,h,w,3)
+            #     cls_ind = int(cls_inds[i])
+            #     fps[cls_ind].write('%s %f %f %f %f %f\n' % (imid.split('.')[0], prob, x1, y1, x2, y2))
+    # for f in fps:
+    #     f.close()
 
 
 def predict_eval(test_file, model_name, weight,use_gpu=True):

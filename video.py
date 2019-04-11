@@ -159,7 +159,7 @@ if __name__ == '__main__':
     num = int(cfg['num'])
 
     print('Loading network')
-    model = load_model(args.model,weightsfile,1)
+    model = load_model(args.model,weightsfile,1,CUDA)
     print('network successfully loaded')
 
     if CUDA:

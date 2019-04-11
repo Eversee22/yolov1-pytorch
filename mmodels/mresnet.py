@@ -239,6 +239,9 @@ class ResNet(nn.Module):
             x[:,:,:,:self.num*5] = torch.sigmoid(x[:, :, :, :self.num*5])
         else:
             x = torch.sigmoid(x)
+            # for i in range(self.num):
+            #     x[:,:,:,i*5:i*5+2] = torch.sigmoid(x[:,:,:,i*5:i*5+2])
+            # x[:,:,:,self.num*5:] = torch.sigmoid(x[:,:,:,self.num*5:])
         # x[:,:,:,self.num*5:] = F.softmax(x[:,:,:,self.num*5:],3)
         # print(x[0,0,0])
         # output = x.clone()

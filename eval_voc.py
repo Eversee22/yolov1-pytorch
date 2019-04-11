@@ -124,10 +124,10 @@ def voc_eval(preds, target, voc_classes=VOC_CLASSES, threshold=0.5,use_07_metric
         print('ap for class {}: {:.4f}'.format(class_, ap))
         aps += [ap]
     print('mAP: {:.4f}'.format(np.mean(aps)))
-    print('{:.3f}'.format(np.mean(aps)), end=" ")
-    for ap in aps:
-        print('{:.3f}'.format(ap), end=" ")
-    print()
+    print('{:.3f}'.format(np.mean(aps)), end=",")
+    for ap in aps[:-1]:
+        print('{:.3f}'.format(ap), end=",")
+    print('{:.3f}'.format(aps[-1]))
 
 
 def eval(test_file,model_name,weight):
@@ -151,6 +151,7 @@ def eval(test_file,model_name,weight):
 
         image_list.append(image_id)
         num_obj = (len(image_file) - 1) // 5
+        assert num_obj > 0
         for i in range(num_obj):
             x1 = float(image_file[1 + 5 * i])
             y1 = float(image_file[2 + 5 * i])

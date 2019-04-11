@@ -130,11 +130,11 @@ def AddExtraLayersVGG(in_channels=512,
                 layers.append(nn.Dropout())
 
         # extra layers
-        layers += [nn.Conv2d(in_channels, 256, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU(inplace=True)]
-        layers += [nn.Conv2d(256, 512, 3, 1, 1, bias=False), nn.BatchNorm2d(512), nn.ReLU(inplace=True)]
+        # layers += [nn.Conv2d(in_channels, 256, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU(inplace=True)]
+        # layers += [nn.Conv2d(256, 512, 3, 1, 1, bias=False), nn.BatchNorm2d(512), nn.ReLU(inplace=True)]
 
         # output
-        in_channels = 512
+        # in_channels = 512
         # layers += [nn.Conv2d(in_channels, 256, 3,1,1), nn.BatchNorm2d(256), nn.ReLU(inplace=True)]
         # layers.append(nn.Conv2d(256, num * 5 + classes,1))
         layers.append(nn.Conv2d(in_channels, num * 5 + classes, 3, 1, 1, bias=not bn))
@@ -168,8 +168,9 @@ def get_model_ft(name, pretrained=True):
 
     elif name == "resnet50":
         models.resnet50()
+        downsm = True
         model_ft = mresnet.resnet50(num=num, side=side, num_classes=classes,
-                                    softmax=softmax, detnet_block=False, downsample=True)
+                                    softmax=softmax, detnet_block=not downsm, downsample=downsm)
         if pretrained:
             resnet = models.resnet50(pretrained=True)
             org_dict = resnet.state_dict()

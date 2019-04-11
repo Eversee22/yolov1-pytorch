@@ -52,101 +52,6 @@ class YOLOLoss(nn.Module):
     def forward(self, preds, labels):
         return self.loss_2(preds, labels)
 
-    # def loss(self, preds, labels):
-    #     """
-    #     preds-[batchsize, side, side, n*(4+1)+20]
-    #     labels-[batchsize, side, side, 4+1+20]
-    #
-    #     """
-    #     avg_iou = 0
-    #     avg_cat = 0
-    #     avg_allcat = 0
-    #     avg_obj = 0
-    #     avg_anyobj = 0
-    #     # count = 0
-    #     # cost = 0
-    #     bbox_size = self.num*5
-    #     cell_size = bbox_size + 20
-    #     batchsize = preds.size(0)
-    #
-    #     preds = preds.view(-1, cell_size)
-    #     delta = torch.FloatTensor(preds.size()).zero_()
-    #
-    #     #no object
-    #     delta[:,4] = self.noobj_scale*(0 - preds[:,4])
-    #     # cost += torch.sum(self.noobj_scale*torch.pow(preds[:,4],2))
-    #     avg_anyobj += torch.sum(preds[:,4])
-    #
-    #
-    #     labels = labels.view(-1, 25)
-    #
-    #     # indices of object confidence non-zero batch
-    #     non_zero_ind = torch.nonzero(labels[:, 4])
-    #
-    #     labels_contain = labels[non_zero_ind].view(-1, 25)
-    #     preds_contain = preds[non_zero_ind].view(-1, cell_size)
-    #
-    #     #class
-    #     delta[non_zero_ind, bbox_size:] = 1.0 * (labels_contain[:,5:]-preds_contain[:,bbox_size:])
-    #     # cost += 1.0 * torch.sum(torch.pow(labels_contain[:,5:]-preds_contain[:,bbox_size:], 2))
-    #     avg_allcat += torch.sum(preds_contain[:, bbox_size:])
-    #     for i in range(labels_contain.size(0)):
-    #         label = labels_contain[i]
-    #         pred = preds_contain[i]
-    #         class_non_zero_ind = torch.nonzero(label[5:])
-    #         avg_cat += torch.sum(pred[bbox_size+class_non_zero_ind])
-    #
-    #     #bbox
-    #     box_label = labels_contain[:,:5]
-    #     box_pred = preds_contain[:,:bbox_size]
-    #
-    #
-    #     box_label_iou = box_label.clone()
-    #     box_pred_iou = box_pred.clone()
-    #
-    #     box_label_iou[:,:2] = box_label[:,:2]/self.side - 0.5*box_label[:,2:4]
-    #     box_label_iou[:,2:4] = box_label[:,:2]/self.side + 0.5*box_label[:,2:4]
-    #
-    #     for i in range(self.num):
-    #         if self.sqrt:
-    #             box_pred_wh = torch.pow(box_pred[:, i*5+2:i*5+4], 2)
-    #         else:
-    #             box_pred_wh = box_pred[:, i*5+2:i*5+4]
-    #         box_pred_iou[:, i*5:i*5+2] = box_pred[:, i*5:i*5+2]/self.side - 0.5*box_pred_wh
-    #         box_pred_iou[:, i*5+2:i*5+4] = box_pred[:, i*5:i*5+2]/self.side + 0.5*box_pred_wh
-    #
-    #     for i in range(box_label_iou.size(0)):
-    #         truth = box_label_iou[i].view(-1, 5)
-    #         out = box_pred_iou[i].view(-1, 5)
-    #         iou = self.compute_iou(out, truth)
-    #         assert iou.shape == (self.num, 1)
-    #
-    #         best_iou, best_index = iou.max(0)
-    #         # best_bbox = out[best_index]
-    #         pindex = non_zero_ind[i]
-    #         # cost -= self.noobj_scale * torch.pow(preds[pindex, best_index*5+4],2)
-    #         # cost += 1.0 * torch.pow(1.0-preds[pindex, best_index*5+4], 2)
-    #
-    #         avg_obj += preds[pindex, best_index*5+4]
-    #         delta[pindex, best_index*5+4] = 1.0 * (1.0-preds[pindex, best_index*5+4])
-    #         delta[pindex, best_index*5:best_index*5+4] = \
-    #             self.coord_scale * (box_label[i, 0:4] - box_pred[i, best_index*5:best_index*5+4])
-    #         if self.sqrt:
-    #             delta[pindex, best_index*5+2:best_index*5+4] = \
-    #                 self.coord_scale * (torch.sqrt(box_label[i,2:4]) - box_pred[i, best_index*5+2:best_index*5+4])
-    #
-    #         # cost += torch.pow(1-iou,2)
-    #         avg_iou += best_iou
-    #
-    #     count = labels_contain.size(0)
-    #     cost = F.mse_loss(torch.FloatTensor(delta.shape).zero_(), delta, reduction="sum")
-    #
-    #     print("Detection Avg IOU: %f, Pos Cat: %f, All Cat: %f, Pos Obj: %f, Any Obj: %f, count: %d\n"
-    #           % (avg_iou/count, avg_cat/iou, avg_allcat/(count*20), avg_obj/count,
-    #              avg_anyobj/(batchsize*self.side*self.side*self.num), count))
-    #
-    #     return cost
-
     def loss_1(self,preds,labels):
         '''
         preds: (tensor) size(batchsize,S,S,Bx5+20) [x,y,w,h,c]
@@ -280,6 +185,7 @@ class YOLOLoss(nn.Module):
         noobj_pred_c = noobj_pred[noobj_pred_mask]
         noobj_label_c = noobj_label[noobj_pred_mask]
         noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
+        noobj_loss *= self.noobj_scale
 
         # object containing loss
         obj_response_mask = torch.cuda.ByteTensor(box_label.size()) if self.use_gpu else torch.ByteTensor(
@@ -296,11 +202,14 @@ class YOLOLoss(nn.Module):
         for i in range(0, box_label.size(0), self.num):
             box1 = box_pred[i:i + self.num]
             box1_coord = torch.FloatTensor(box1.size())  # Variable
-            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
-            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
-
             box2 = box_label[i].view(-1, 5)
             box2_coord = torch.FloatTensor(box2.size())  # Variable
+            # if self.sqrt:
+            #     box1_coord[:, :2] = box1[:, :2] * s - 0.5 * torch.pow(box1[:, 2:4], 2)
+            #     box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * torch.pow(box1[:, 2:4], 2)
+            # else:
+            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
+            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
             box2_coord[:, :2] = box2[:, :2] * s - 0.5 * box2[:, 2:4]
             box2_coord[:, 2:4] = box2[:, :2] * s + 0.5 * box2[:, 2:4]
             iou = self.compute_iou(box1_coord[:, :4], box2_coord[:, :4])
@@ -327,26 +236,32 @@ class YOLOLoss(nn.Module):
         if self.sqrt:
             wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
             # wh_loss = F.smooth_l1_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
-            # scale = 4. * torch.sigmoid(torch.pow(box_pred_response[:, 2:4] / box_label_response[:, 2:4] - 1., 2))
+            # scale = 4. * torch.sigmoid(torch.abs(box_pred_response[:, 2:4] / box_label_response[:, 2:4] - 1))
             # wh_loss = torch.sum(scale * torch.pow(box_pred_response[:, 2:4] - box_label_response[:, 2:4], 2))
         else:
             wh_loss = F.mse_loss(box_pred_response[:, 2:4], box_label_response[:, 2:4], reduction="sum")
-
+        xy_loss *= self.coord_scale
+        wh_loss *= self.coord_scale
+        response_loss *= 2.0
         # not response loss
         box_pred_not_response = box_pred[obj_not_response_mask].view(-1, 5)
         box_label_not_response = box_label[obj_not_response_mask].view(-1, 5)
         box_label_not_response[:, 4] = 0
         not_response_loss = F.mse_loss(box_pred_not_response[:, 4], box_label_not_response[:, 4], reduction="sum")
+        not_response_loss *= 1.0
 
         # class loss
         # if softmax:
         #     class_loss = F.cross_entropy(class_pred, class_label.max(1)[1], reduction="sum")
         # else:
-        # class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
-        class_loss = F.binary_cross_entropy(class_pred, class_label, reduction='sum')
+        class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
+        # class_loss = F.binary_cross_entropy(class_pred, class_label, reduction='sum')
+        # class_loss *= 0.5
 
-        print("xy loss:{:.4f},wh loss:{:.4f},class loss:{:.4f},noobj loss:{:.4f}".format(xy_loss, wh_loss, class_loss,noobj_loss))
-        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+self.noobj_scale*noobj_loss+class_loss
+        print("xy loss:{:.4f},wh loss:{:.4f},resp loss:{:.4f},non-resp loss:{:.4f},noobj loss:{:.4f},class loss:{:.4f}".format(
+                xy_loss, wh_loss, response_loss, not_response_loss, noobj_loss, class_loss))
+        # print('coord loos:class loss {:.3f}'.format((xy_loss+wh_loss)/class_loss))
+        total_loss = (xy_loss + wh_loss) + response_loss + not_response_loss + noobj_loss + class_loss
 
         return total_loss / N
 
@@ -378,6 +293,7 @@ class YOLOLoss(nn.Module):
 
         # not containing loss
         noobj_loss = F.mse_loss(noobj_pred[:, 4], noobj_label[:, 4], reduction="sum")
+        noobj_loss *= self.noobj_scale
 
         obj_response_mask = torch.ByteTensor(obj_pred.size()).zero_()
         if self.use_gpu:
@@ -393,11 +309,14 @@ class YOLOLoss(nn.Module):
         for i in range(0, obj_pred.size(0), self.num):
             box1 = obj_pred[i:i+self.num, :4]
             box1_coord = torch.FloatTensor(box1.size())
-            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
-            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
-
             box2 = obj_label[i, :4].view(-1, 4)
             box2_coord = torch.FloatTensor(box2.size())
+            # if self.sqrt:
+            #     box1_coord[:, :2] = box1[:, :2] * s - 0.5 * torch.pow(box1[:, 2:4], 2)
+            #     box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * torch.pow(box1[:, 2:4], 2)
+            # else:
+            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
+            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
             box2_coord[:, :2] = box2[:, :2] * s - 0.5 * box2[:, 2:4]
             box2_coord[:, 2:4] = box2[:, :2] * s + 0.5 * box2[:, 2:4]
 
@@ -418,19 +337,120 @@ class YOLOLoss(nn.Module):
         response_loss = F.mse_loss(box_pred_response[:, 4], box_label_response_iou[:, 4], reduction="sum")
         xy_loss = F.mse_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
         wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:, 2:4]), torch.sqrt(box_label_response[:, 2:4]), reduction="sum")
+        xy_loss *= self.coord_scale
+        wh_loss *= self.coord_scale
+        response_loss *= 2.0
 
         # not response loss
         box_pred_not_response = obj_pred[obj_not_response_mask].view(-1, bbox_size)
-        # box_label_not_response = obj_label[obj_not_response_mask].view(-1, bbox_size)
-        # box_label_not_response[:, 4] = 0
-        not_response_loss = F.mse_loss(box_pred_not_response[:, 4], torch.zeros(box_pred_not_response.size(0)), reduction="sum")
+        box_label_not_response = obj_label[obj_not_response_mask].view(-1, bbox_size)
+        box_label_not_response[:, 4] = 0
+        not_response_loss = F.mse_loss(box_pred_not_response[:, 4], box_label_not_response[:, 4], reduction="sum")
 
         # class loss
-        class_loss = F.binary_cross_entropy(obj_pred[:, 5:], obj_label[:, 5:], reduction="sum")
+        class_loss = F.mse_loss(obj_pred[:, 5:], obj_label[:, 5:], reduction='sum')
+        # class_loss = F.binary_cross_entropy(obj_pred[:, 5:], obj_label[:, 5:], reduction="sum")
 
-        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+self.noobj_scale*noobj_loss+class_loss
+        print("xy loss:{:.4f},wh loss:{:.4f},resp loss:{:.4f},non-resp loss:{:.4f},noobj loss:{:.4f},class loss:{:.4f}".format(
+            xy_loss,wh_loss,response_loss,not_response_loss,noobj_loss,class_loss))
+        total_loss = (xy_loss+wh_loss)+response_loss+not_response_loss+noobj_loss+class_loss
 
         return total_loss / N
+
+    # def loss(self, preds, labels):
+    #     """
+    #     preds-[batchsize, side, side, n*(4+1)+20]
+    #     labels-[batchsize, side, side, 4+1+20]
+    #
+    #     """
+    #     avg_iou = 0
+    #     avg_cat = 0
+    #     avg_allcat = 0
+    #     avg_obj = 0
+    #     avg_anyobj = 0
+    #     # count = 0
+    #     # cost = 0
+    #     bbox_size = self.num*5
+    #     cell_size = bbox_size + 20
+    #     batchsize = preds.size(0)
+    #
+    #     preds = preds.view(-1, cell_size)
+    #     delta = torch.FloatTensor(preds.size()).zero_()
+    #
+    #     #no object
+    #     delta[:,4] = self.noobj_scale*(0 - preds[:,4])
+    #     # cost += torch.sum(self.noobj_scale*torch.pow(preds[:,4],2))
+    #     avg_anyobj += torch.sum(preds[:,4])
+    #
+    #
+    #     labels = labels.view(-1, 25)
+    #
+    #     # indices of object confidence non-zero batch
+    #     non_zero_ind = torch.nonzero(labels[:, 4])
+    #
+    #     labels_contain = labels[non_zero_ind].view(-1, 25)
+    #     preds_contain = preds[non_zero_ind].view(-1, cell_size)
+    #
+    #     #class
+    #     delta[non_zero_ind, bbox_size:] = 1.0 * (labels_contain[:,5:]-preds_contain[:,bbox_size:])
+    #     # cost += 1.0 * torch.sum(torch.pow(labels_contain[:,5:]-preds_contain[:,bbox_size:], 2))
+    #     avg_allcat += torch.sum(preds_contain[:, bbox_size:])
+    #     for i in range(labels_contain.size(0)):
+    #         label = labels_contain[i]
+    #         pred = preds_contain[i]
+    #         class_non_zero_ind = torch.nonzero(label[5:])
+    #         avg_cat += torch.sum(pred[bbox_size+class_non_zero_ind])
+    #
+    #     #bbox
+    #     box_label = labels_contain[:,:5]
+    #     box_pred = preds_contain[:,:bbox_size]
+    #
+    #
+    #     box_label_iou = box_label.clone()
+    #     box_pred_iou = box_pred.clone()
+    #
+    #     box_label_iou[:,:2] = box_label[:,:2]/self.side - 0.5*box_label[:,2:4]
+    #     box_label_iou[:,2:4] = box_label[:,:2]/self.side + 0.5*box_label[:,2:4]
+    #
+    #     for i in range(self.num):
+    #         if self.sqrt:
+    #             box_pred_wh = torch.pow(box_pred[:, i*5+2:i*5+4], 2)
+    #         else:
+    #             box_pred_wh = box_pred[:, i*5+2:i*5+4]
+    #         box_pred_iou[:, i*5:i*5+2] = box_pred[:, i*5:i*5+2]/self.side - 0.5*box_pred_wh
+    #         box_pred_iou[:, i*5+2:i*5+4] = box_pred[:, i*5:i*5+2]/self.side + 0.5*box_pred_wh
+    #
+    #     for i in range(box_label_iou.size(0)):
+    #         truth = box_label_iou[i].view(-1, 5)
+    #         out = box_pred_iou[i].view(-1, 5)
+    #         iou = self.compute_iou(out, truth)
+    #         assert iou.shape == (self.num, 1)
+    #
+    #         best_iou, best_index = iou.max(0)
+    #         # best_bbox = out[best_index]
+    #         pindex = non_zero_ind[i]
+    #         # cost -= self.noobj_scale * torch.pow(preds[pindex, best_index*5+4],2)
+    #         # cost += 1.0 * torch.pow(1.0-preds[pindex, best_index*5+4], 2)
+    #
+    #         avg_obj += preds[pindex, best_index*5+4]
+    #         delta[pindex, best_index*5+4] = 1.0 * (1.0-preds[pindex, best_index*5+4])
+    #         delta[pindex, best_index*5:best_index*5+4] = \
+    #             self.coord_scale * (box_label[i, 0:4] - box_pred[i, best_index*5:best_index*5+4])
+    #         if self.sqrt:
+    #             delta[pindex, best_index*5+2:best_index*5+4] = \
+    #                 self.coord_scale * (torch.sqrt(box_label[i,2:4]) - box_pred[i, best_index*5+2:best_index*5+4])
+    #
+    #         # cost += torch.pow(1-iou,2)
+    #         avg_iou += best_iou
+    #
+    #     count = labels_contain.size(0)
+    #     cost = F.mse_loss(torch.FloatTensor(delta.shape).zero_(), delta, reduction="sum")
+    #
+    #     print("Detection Avg IOU: %f, Pos Cat: %f, All Cat: %f, Pos Obj: %f, Any Obj: %f, count: %d\n"
+    #           % (avg_iou/count, avg_cat/iou, avg_allcat/(count*20), avg_obj/count,
+    #              avg_anyobj/(batchsize*self.side*self.side*self.num), count))
+    #
+    #     return cost
 
 
 if __name__ == '__main__':
@@ -438,8 +458,9 @@ if __name__ == '__main__':
     torch.manual_seed(1)
     pred = torch.rand(1, 14, 2, 25).cuda()
     target = torch.rand(pred.shape).cuda()
-    loss = yololoss(pred, target)
+    loss = yololoss.loss_2(pred, target)
     loss_1 =yololoss.loss_3(pred,target)
-    print(loss,loss_1)  # 181.4906
+    print(loss)  # 181.4906
+    print(loss_1)
 
 

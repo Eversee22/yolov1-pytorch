@@ -70,7 +70,7 @@ def test_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4,
 
 def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
     print('load weight')
-    model = load_model(model_name, weight, mode)
+    model = load_model(model_name, weight, mode,use_gpu)
     if use_gpu:
         model.cuda()
     print("detecting")
@@ -91,19 +91,32 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
     if not os.path.exists('det'):
         os.mkdir('det')
     random.shuffle(images)
+    since = time.time()
     for imp in images:
         image = cv2.imread(imp)
         h, w, _ = image.shape
         pred = get_pred(image,model,use_gpu)
-        boxes, probs, cls_indices = get_detection_boxes_1(pred, prob_thresh, nms_thresh, True)
-        for i, box in enumerate(boxes):
-            if probs[i] == 0:
-                continue
-            box = convert_box(box,h,w)
-            cls_index = int(cls_indices[i])
-            # print(cls_index)
-            prob = float(probs[i])
-            image = imwrite(image, box, voc_class_names[cls_index], cls_index, prob)
+        probs = np.zeros((side * side * num, classes))
+        boxes = np.zeros((side * side * num, 4))
+        get_detection_boxes(pred, 0.1, 0.5, boxes, probs)
+        maxclsind = np.argmax(probs, 1)
+        maxprob = np.max(probs, 1)
+        mask = maxprob > 0
+        maskbox = correct_boxes(boxes[mask], h, w)
+        maskprob = maxprob[mask]
+        maskind = maxclsind[mask]
+        for i in range(np.sum(mask)):
+            image = imwrite(image, maskbox[i], voc_class_names[maskind[i]], maskind[i], maskprob[i])
+
+        # boxes, probs, cls_indices = get_detection_boxes_1(pred, prob_thresh, nms_thresh, True)
+        # for i, box in enumerate(boxes):
+        #     if probs[i] == 0:
+        #         continue
+        #     box = convert_box(box,h,w)
+        #     cls_index = int(cls_indices[i])
+        #     # print(cls_index)
+        #     prob = float(probs[i])
+        #     image = imwrite(image, box, voc_class_names[cls_index], cls_index, prob)
 
         cv2.imshow("img", image)
         key = cv2.waitKey(0)
@@ -113,10 +126,11 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
         elif key & 0xFF == ord('s'):
             cv2.imwrite('det/bbox_%s.png' % imp.split('/')[-1].split('.')[0], image)
         # time.sleep(2)
+    print('{:.3f}s per image'.format((time.time()-since)/len(images)))
 
 
 def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
-    result = get_test_result(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
+    result = get_test_result_1(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
     image = cv2.imread(image_name)
     print('get result:%d'%len(result))
     for item in result:
@@ -146,7 +160,7 @@ def arg_parse():
     arg_parser.add_argument("-i", dest="imgn", help="image name", type=str)
     arg_parser.add_argument("-m",dest="mn", default="resnet50", help="model name", type=str)
     arg_parser.add_argument("--mode", dest="mode", default=1, help="model save mode", type=int)
-    arg_parser.add_argument("--nms", dest="nms", default=0.4, help="nms thresh", type=float)
+    arg_parser.add_argument("--nms", dest="nms", default=0.5, help="nms thresh", type=float)
     arg_parser.add_argument("--thresh", dest="thresh", default=0.2, help="confidence thresh", type=float)
     arg_parser.add_argument("weight", nargs=1, help="weight file", type=str)
 
