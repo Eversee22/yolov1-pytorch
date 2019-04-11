@@ -1,6 +1,5 @@
 backup/
 local/
-__pycache__/
 results/
 utils/
 log/
