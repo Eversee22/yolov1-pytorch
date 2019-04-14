@@ -9,4 +9,4 @@ I have tried resnet50 on YOLO and it looks not bad, the following is the results
 ## Train on voc_2012_trainval+voc_2007_trainval
 | model                | backbone | mAP@voc_2007_test  | FPS(Geforce GTX 1070)  |
 | -------------------- | -------------- | ---------- | -------   |
-| yolo_resnet50  |   resnet50        | 67.7%      |  35   |
+| yolo_resnet50  |   resnet50        | 69.5%      |  35   |
