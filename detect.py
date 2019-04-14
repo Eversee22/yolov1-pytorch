@@ -68,9 +68,9 @@ def test_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4,
     # return output
 
 
-def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
+def test_many(model_name,test_file,weight, prob_thresh=0.1, nms_thresh=0.5, mode=1,pd=True,use_gpu=True):
     print('load weight')
-    model = load_model(model_name, weight, mode,use_gpu)
+    model = load_model(model_name, weight, mode, use_gpu)
     if use_gpu:
         model.cuda()
     print("detecting")
@@ -93,20 +93,37 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
     random.shuffle(images)
     since = time.time()
     for imp in images:
+        # print(imp)
         image = cv2.imread(imp)
         h, w, _ = image.shape
         pred = get_pred(image,model,use_gpu)
         probs = np.zeros((side * side * num, classes))
         boxes = np.zeros((side * side * num, 4))
-        get_detection_boxes(pred, 0.1, 0.5, boxes, probs)
+        get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+
         maxclsind = np.argmax(probs, 1)
         maxprob = np.max(probs, 1)
         mask = maxprob > 0
-        maskbox = correct_boxes(boxes[mask], h, w)
+        if np.sum(mask) == 0:
+            continue
+
+        maskbox = boxes[mask]
         maskprob = maxprob[mask]
         maskind = maxclsind[mask]
-        for i in range(np.sum(mask)):
-            image = imwrite(image, maskbox[i], voc_class_names[maskind[i]], maskind[i], maskprob[i])
+        if pd:
+            output = postdeal(maskbox,maskprob,maskind,h,w)
+            for it in output:
+                box = it[0]
+                prob = it[1]
+                cls_ind = it[2]
+                cls_names = [voc_class_names[i] for i in cls_ind]
+                prob = [p for p in prob]
+                cls_ind = cls_ind[0]
+                image = imwrite(image, box, cls_names, cls_ind, prob)
+        else:
+            maskbox = correct_boxes(maskbox, h, w)
+            for i in range(maskbox.shape[0]):
+                image = imwrite(image, maskbox[i], voc_class_names[maskind[i]], maskind[i], maskprob[i])
 
         # boxes, probs, cls_indices = get_detection_boxes_1(pred, prob_thresh, nms_thresh, True)
         # for i, box in enumerate(boxes):
@@ -129,8 +146,8 @@ def test_many(model_name,test_file,weight, prob_thresh=0.2, nms_thresh=0.4, mode
     print('{:.3f}s per image'.format((time.time()-since)/len(images)))
 
 
-def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
-    result = get_test_result_1(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
+def test(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1, use_gpu=True):
+    result = get_test_result(model_name, image_name, weight, prob_thresh, nms_thresh, mode, use_gpu)
     image = cv2.imread(image_name)
     print('get result:%d'%len(result))
     for item in result:
@@ -162,6 +179,7 @@ def arg_parse():
     arg_parser.add_argument("--mode", dest="mode", default=1, help="model save mode", type=int)
     arg_parser.add_argument("--nms", dest="nms", default=0.5, help="nms thresh", type=float)
     arg_parser.add_argument("--thresh", dest="thresh", default=0.2, help="confidence thresh", type=float)
+    arg_parser.add_argument("--pd", dest="pd", default=1, help="post deal", type=int)
     arg_parser.add_argument("weight", nargs=1, help="weight file", type=str)
 
     if len(sys.argv) < 2:
@@ -181,13 +199,14 @@ if __name__ == '__main__':
     mode = args.mode
     # num = args.num
     nms = args.nms
+    pd = args.pd
     thresh = args.thresh
     weight = args.weight[0]
 
     if do == "test":
-        test(model_name, image_name, weight,thresh,nms, mode,False)
+        test(model_name, image_name, weight,thresh,nms, mode, use_gpu=False)
     elif do == "test2":
-        test_many(model_name, image_name, weight, thresh, nms, mode)
+        test_many(model_name, image_name, weight, thresh, nms, mode,pd=pd)
     elif do == "test3":
         test_canvas(model_name, image_name, weight, thresh, nms, mode)
     elif do == "eval":

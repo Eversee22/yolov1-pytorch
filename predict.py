@@ -248,7 +248,7 @@ def get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
             # probs[g*num+k, prob != prob.max()] = 0
             # for z in range(classes):
             #     prob = obj * pred[i, j, num * 5 + z]
-            #     probs[g*num+k][z] = prob if prob > prob_thresh else 0
+            #     probs[g*num+k, z] = prob if prob > prob_thresh else 0
     if nms:
         # since = time.time()
         do_nms(boxes, probs, nms_thresh)
@@ -384,6 +384,38 @@ def correct_boxes(boxes,h,w,mode=0):
     return boxesout
 
 
+def postdeal(box,prob,ind,h,w):
+    mmord = np.argsort(prob)[::-1]
+    keep = {}
+    while mmord.size > 0:
+        i = mmord[0]
+        keep[i] = []
+        if mmord.size == 1:
+            break
+        ovs = bboxes_iou_np(box[i], box[mmord[1:]])
+        mask = ovs > 0.6
+        keep[i] = mmord[1:][mask]
+        mmord = mmord[1:][1 - mask == 1]
+    output = []
+    for i in keep:
+        keepind = []
+        keepprob = []
+        keepind.append(ind[i])
+        keepprob.append(prob[i])
+        ki = ind[keep[i]]
+        kp = prob[keep[i]]
+        asind = np.argsort(ki)
+        uni = ind[i]
+        # print(ki)
+        for j in asind:
+            if ki[j] != uni:
+                keepind.append(ki[j])
+                keepprob.append(kp[j])
+                uni = ki[j]
+        output.append([correct_box(box[i], h, w), keepprob, keepind])
+    return output
+
+
 def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1, use_gpu=True):
     image = cv2.imread(image_name)
     h, w, _ = image.shape
@@ -404,7 +436,7 @@ def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=
     #     buff = np.append(buff,probs)
     #     buff = np.append(buff,boxes)
     #     buff.astype('float32').tofile(fp)
-    postdeal = False
+    pd = True
     output = []
     maxind = np.argmax(probs, 1)
     maxprob = np.max(probs, 1)
@@ -416,28 +448,8 @@ def get_test_result(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=
     maskprob = maxprob[mask]
     maskind = maxind[mask]
 
-    if postdeal:
-        mmord = np.argsort(-maskprob)
-        keep = {}
-        while mmord.size > 0:
-            i = mmord[0]
-            keep[i] = []
-            if mmord.size == 1:
-                break
-            ovs = bboxes_iou_np(maskbox[i], maskbox[mmord[1:]])
-            mask = ovs > 0.5
-            keep[i] = mmord[1:][mask]
-            mmord = mmord[1:][1-mask==1]
-
-        for i in keep:
-            keepind = []
-            keepprob = []
-            keepind.append(maskind[i])
-            keepprob.append(maskprob[i])
-            for j in keep[i]:
-                keepind.append(maskind[j])
-                keepprob.append(maskprob[j])
-            output.append([correct_box(maskbox[i],h,w),keepprob,keepind])
+    if pd:
+        output = postdeal(maskbox,maskprob,maskind,h,w)
     else:
         maskbox = correct_boxes(maskbox,h,w)
         maskprob = maxprob[mask].reshape(-1, 1)
@@ -530,7 +542,7 @@ def predict_eval(test_file, model_name, weight,use_gpu=True):
         # pred = pred.cpu()
         probs = np.zeros((side * side * num, classes))
         boxes = np.zeros((side * side * num, 4))
-        get_detection_boxes(pred, 0.1, 0.5, boxes, probs)
+        get_detection_boxes(pred, 0.1, 0.5, boxes, probs,True)
         for i in range(probs.shape[0]):
             x1, y1, x2, y2 = correct_box(boxes[i],h,w,1)
             for j in range(classes):

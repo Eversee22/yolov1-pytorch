@@ -168,7 +168,7 @@ def get_model_ft(name, pretrained=True):
 
     elif name == "resnet50":
         models.resnet50()
-        downsm = True
+        downsm = False
         model_ft = mresnet.resnet50(num=num, side=side, num_classes=classes,
                                     softmax=softmax, detnet_block=not downsm, downsample=downsm)
         if pretrained:

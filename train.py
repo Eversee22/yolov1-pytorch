@@ -31,7 +31,7 @@ momentum = 0.9
 weight_decay = 5e-4
 steps = [30, 40]
 lr_scale = [0.1, 0.1]
-num_epochs = 50
+num_epochs = 10
 
 d = readcfg('cfg/yolond')
 side = int(d['side'])
@@ -52,7 +52,7 @@ visualize = True
 log = True
 validate = False
 vischange = False
-save_final = True
+save_final = False
 
 data_transforms = transforms.Compose([
     # transforms.ToTensor(),
@@ -218,6 +218,7 @@ if env is None:
     print('no visdom-environment specified, visualization off')
     visualize = False
     # sys.exit(1)
+vis = None
 if visualize:
     vis = Visualizer(env='{}{}_{}'.format(model_name, env, time.strftime('%m%d%H%M')))
 if log:
@@ -238,7 +239,8 @@ assert model_ft is not None
 
 model_ft.to(device)
 
-criterion = YOLOLoss(side=side, num=num, sqrt=sqrt, coord_scale=coord_scale, noobj_scale=noobj_scale)
+vis = Visualizer('bceloss_2_cmp_{}'.format(time.strftime('%m%d%H%M')))
+criterion = YOLOLoss(side=side, num=num, sqrt=sqrt, coord_scale=coord_scale, noobj_scale=noobj_scale, vis=vis)
 
 # params=[]
 # params_dict = dict(model_ft.named_parameters())

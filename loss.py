@@ -9,7 +9,7 @@ class_num = int(d['classes'])
 
 
 class YOLOLoss(nn.Module):
-    def __init__(self, side, num, sqrt, coord_scale, noobj_scale, use_gpu=True):
+    def __init__(self, side, num, sqrt, coord_scale, noobj_scale, use_gpu=True,vis=None):
         super(YOLOLoss, self).__init__()
         self.side = side
         self.num = num
@@ -18,6 +18,7 @@ class YOLOLoss(nn.Module):
         self.sqrt = sqrt
         # self.use_gpu = torch.cuda.is_available()
         self.use_gpu = use_gpu
+        self.vis = vis
 
     def compute_iou(self, box1, box2):
         """
@@ -142,7 +143,7 @@ class YOLOLoss(nn.Module):
         # class loss
         class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
 
-        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+self.noobj_scale*noobj_loss+class_loss
+        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+0.5*self.noobj_scale*noobj_loss+class_loss
 
         return total_loss / N
 
@@ -177,9 +178,9 @@ class YOLOLoss(nn.Module):
         # compute not containing loss
         noobj_pred = preds[noobj_mask].view(-1, cell_size)
         noobj_label = labels[noobj_mask].view(-1, cell_size)
-        noobj_pred_mask = torch.cuda.ByteTensor(noobj_pred.size()) if self.use_gpu else torch.ByteTensor(
-            noobj_pred.size())
-        noobj_pred_mask.zero_()
+        noobj_pred_mask = torch.ByteTensor(noobj_pred.size()).zero_()
+        if self.use_gpu:
+            noobj_pred_mask = noobj_pred_mask.cuda()
         for i in range(self.num):
             noobj_pred_mask[:, i * 5 + 4] = 1  # just need confidence
         noobj_pred_c = noobj_pred[noobj_pred_mask]
@@ -188,12 +189,12 @@ class YOLOLoss(nn.Module):
         noobj_loss *= self.noobj_scale
 
         # object containing loss
-        obj_response_mask = torch.cuda.ByteTensor(box_label.size()) if self.use_gpu else torch.ByteTensor(
-            box_label.size())
-        obj_response_mask.zero_()
-        obj_not_response_mask = torch.cuda.ByteTensor(box_label.size()) if self.use_gpu else torch.ByteTensor(
-            box_label.size())
-        obj_not_response_mask.zero_()
+        obj_response_mask = torch.ByteTensor(box_label.size()).zero_()
+        if self.use_gpu:
+            obj_response_mask = obj_response_mask.cuda()
+        obj_not_response_mask = torch.ByteTensor(box_label.size()).zero_()
+        if self.use_gpu:
+            obj_not_response_mask = obj_not_response_mask.cuda()
         box_label_iou = torch.zeros(box_label.size())
         if self.use_gpu:
             box_label_iou = box_label_iou.cuda()
@@ -254,14 +255,19 @@ class YOLOLoss(nn.Module):
         # if softmax:
         #     class_loss = F.cross_entropy(class_pred, class_label.max(1)[1], reduction="sum")
         # else:
-        class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
-        # class_loss = F.binary_cross_entropy(class_pred, class_label, reduction='sum')
+        # class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
+        class_loss = F.binary_cross_entropy(class_pred, class_label, reduction='sum')
         # class_loss *= 0.5
 
         print("xy loss:{:.4f},wh loss:{:.4f},resp loss:{:.4f},non-resp loss:{:.4f},noobj loss:{:.4f},class loss:{:.4f}".format(
                 xy_loss, wh_loss, response_loss, not_response_loss, noobj_loss, class_loss))
         # print('coord loos:class loss {:.3f}'.format((xy_loss+wh_loss)/class_loss))
         total_loss = (xy_loss + wh_loss) + response_loss + not_response_loss + noobj_loss + class_loss
+        if self.vis is not None:
+            self.vis.plot_many_stack({'xy': xy_loss.item(),'wh': wh_loss.item(),
+                                      'resp':response_loss.item(),'non-resp':not_response_loss.item(),
+                                      'noobj':noobj_loss.item(),
+                                      'class':class_loss.item()},'iter','losses')
 
         return total_loss / N
 
@@ -454,12 +460,12 @@ class YOLOLoss(nn.Module):
 
 
 if __name__ == '__main__':
-    yololoss = YOLOLoss(14,1,1,5,.5)
+    yololoss = YOLOLoss(14,2,1,5,.5)
     torch.manual_seed(1)
-    pred = torch.rand(1, 14, 2, 25).cuda()
+    pred = torch.rand(1, 14, 2, 30).cuda()
     target = torch.rand(pred.shape).cuda()
-    loss = yololoss.loss_2(pred, target)
-    loss_1 =yololoss.loss_3(pred,target)
+    loss = yololoss.loss_1(pred, target)
+    loss_1 =yololoss.loss_2(pred,target)
     print(loss)  # 181.4906
     print(loss_1)
 
