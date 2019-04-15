@@ -186,7 +186,7 @@ class YOLOLoss(nn.Module):
         noobj_pred_c = noobj_pred[noobj_pred_mask]
         noobj_label_c = noobj_label[noobj_pred_mask]
         noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
-        noobj_loss *= self.noobj_scale
+        noobj_loss *= self.noobj_scale*0.5
 
         # object containing loss
         obj_response_mask = torch.ByteTensor(box_label.size()).zero_()
@@ -255,8 +255,8 @@ class YOLOLoss(nn.Module):
         # if softmax:
         #     class_loss = F.cross_entropy(class_pred, class_label.max(1)[1], reduction="sum")
         # else:
-        # class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
-        class_loss = F.binary_cross_entropy(class_pred, class_label, reduction='sum')
+        class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
+        # class_loss = F.binary_cross_entropy(class_pred, class_label, reduction='sum')
         # class_loss *= 0.5
 
         print("xy loss:{:.4f},wh loss:{:.4f},resp loss:{:.4f},non-resp loss:{:.4f},noobj loss:{:.4f},class loss:{:.4f}".format(
