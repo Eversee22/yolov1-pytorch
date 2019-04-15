@@ -13,13 +13,13 @@ def arg_parse():
     parser = argparse.ArgumentParser(description='YOLOv1 video')
     parser.add_argument("--bs", dest="bs", help="Batch size", default=1)
     parser.add_argument("--confidence", dest="confidence", help="Object Confidence to filter predictions", type=float, default=0.18)
-    parser.add_argument("--nms_thresh", dest="nms_thresh", help="NMS Threshhold", type=float, default=0.4)
+    parser.add_argument("--nms_thresh", dest="nms_thresh", help="NMS Threshhold", type=float, default=0.5)
     parser.add_argument("-m", dest='model', help="model name", default="resnet50", type=str)
     parser.add_argument('weightsfile', nargs=1, help="weights file", type=str)
     # parser.add_argument("--reso", dest='reso', help="Input resolution of the network. Increase to increase accuracy. Decrease to increase speed",
     #                     default="448", type=str)
-    parser.add_argument("-v", dest="videofile", help="Video file to run detection on", type=str)
-
+    parser.add_argument("-i", dest="videofile", help="Video file to run detection on", type=str)
+    parser.add_argument("--dv", dest="dv", help="download video", default=0, type=int)
     # if len(sys.argv)<2:
     #     parser.print_help()
     #     exit(0)
@@ -144,11 +144,13 @@ if __name__ == '__main__':
     from util import load_classes,imwrite,readcfg,prep_image
     import cv2
     import time
+    import os
 
     args = arg_parse()
     confidence = args.confidence
     nms_thresh = args.nms_thresh
     weightsfile = args.weightsfile[0]
+    dv = args.dv
 
     class_names = load_classes('data/voc.names')
     class_num = len(class_names)
@@ -172,6 +174,16 @@ if __name__ == '__main__':
 
     assert cap.isOpened(), 'Cannot capture source'
 
+    if dv:
+        print('dv mode open')
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        sz = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+        vout = cv2.VideoWriter()
+        if not os.path.exists('local'):
+            os.mkdir('local')
+        vout.open('./local/output.avi', fourcc, fps, sz, True)
+
     frames = 0
     start = time.time()
 
@@ -192,6 +204,8 @@ if __name__ == '__main__':
             # t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1, 1)[0]
             cv2.putText(frame, label, (1, 10), cv2.FONT_HERSHEY_PLAIN, 1, [0, 255, 255], 1)
             cv2.imshow("frame", frame)
+            if dv:
+                vout.write(frame)
             key = cv2.waitKey(1)
             if key & 0xFF == ord('q'):
                 break
