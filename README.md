@@ -1,6 +1,6 @@
 # yolov1-pytorch
 # See another branch for newest results!
-**Some expriments on YOLO, such as changing the network architecture, loss function and learning strategies.**  
+**Some experiments on YOLO, such as changing the network architecture, loss function and learning strategies.**  
 I have tried resnet50 on YOLO and it looks not bad, the following is the results.  
 
 ![](det/bbox_dog.png)  
