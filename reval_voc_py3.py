@@ -26,7 +26,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Re-evaluate results')
     parser.add_argument('output_dir', nargs=1, default='results',help='results directory',
                         type=str)
-    parser.add_argument('--voc_dir', dest='voc_dir', default='/home/blacksun2/github/darknet-2016-11-22/VOCdevkit', type=str)
+    parser.add_argument('--voc_dir', dest='voc_dir', default='VOCdevkit', type=str)
     parser.add_argument('--year', dest='year', default='2007', type=str)
     parser.add_argument('--image_set', dest='image_set', default='test', type=str)
 
