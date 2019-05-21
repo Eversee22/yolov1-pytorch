@@ -61,11 +61,11 @@
   `voc_2007_train.txt voc_2007_val.txt voc_2012_train.txt voc_2012_val.txt`
   合并成一个文件，如在 linux 中，可使用命令 `cat voc_2007_train.txt voc_2007_val.txt voc_2012_* > train.txt`
 
-  **注意：取决于 `VOCdevkit` 的位置，可能需要改变 `voc_label_bbox.py` 中的 `VOC_root` 参数， 以明确 `VOCdevkit` 所处的路径，默认在 'data' 目录下**
+  **注意：取决于 `VOCdevkit` 的位置，可能需要改变 `voc_label_bbox.py` 中的 `VOC_root` 参数， 以明确 `VOCdevkit` 所处的路径，默认在 `data` 目录下**
 
   准备好数据之后，运行命令 `python train.py` 就可以开始训练了，如果配置没有任何错误，训练过程就会正常进行，默认训练 50 个epoch，在 VOC 2007 数据集上使用单块 GTX 1070 GPU 大约需要 3~4 个小时, 在 VOC 2007+2012 则大致需要3倍的时间（虽然也可以使用CPU训练，但并不推荐，当然时间充足者随意）。如果想可视化训练过程，则需要安装 `visdom` 依赖包，并使用 `python -m visdom.server` 先启用 visdom 服务，然后在使用训练命令时设置一个环境参数，如 `python train.py -env test` 将会开启名为 test的 visdom可视化环境，这时在浏览器中就可以观察到训练时的损失变化曲线了。
 
-  **注意：默认采用 ResNet50 作为主干网络，若换用VGG16, 则需使用 `-n` 的参数明确使用的网络，如 `python train.py -n vgg16`, 在检测时也需要注意这一点，否则权重加载可能会出现错误。另外对于ResNet50, 可以使用7x7或14x14的输出，这同检测时的配置一致**
+  **注意：默认采用 ResNet50 作为主干网络，若换用VGG16, 则需使用 `-n` 的参数明确使用的网络，如 `python train.py -n vgg16`, 在检测时也需要注意这一点，否则权重加载可能会出现错误。另外对于ResNet50, 可以使用 7x7 或 14x14 的输出，这同检测时的配置一致**
 
 ## 计算mAP
   使用 `python voc_label_07test.py` 产生测试数据，默认在 `data` 目录，名为 `2007_test.txt`，然后运行以下命令序列：  
