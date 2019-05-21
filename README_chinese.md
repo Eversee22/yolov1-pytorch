@@ -15,7 +15,7 @@
 
 ## 下载:  
   ```
-  git clone https://https://github.com/Eversee22/yolov1-pytorch.git  
+  git clone https://github.com/Eversee22/yolov1-pytorch.git  
   cd yolov1-pytorch  
   git checkout exp1-loss
   ```
