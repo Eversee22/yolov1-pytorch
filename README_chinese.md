@@ -57,14 +57,9 @@
   https://pjreddie.com/media/files/VOCtrainval_06-Nov-2007.tar
   https://pjreddie.com/media/files/VOCtest_06-Nov-2007.tar
   ```
-  解压以上数据，默认均解压到 `VOCdevkit` 目录，使用：  
-
-  `python voc_label_bbox.py`
-
-  产生训练文件，默认保存在 `data` 目录中，然后将该目录下的   
+  解压以上数据，默认均解压到 `VOCdevkit` 目录，使用 `python voc_label_bbox.py` 命令产生训练文件，默认保存在 `data` 目录中，然后将该目录下的   
   `voc_2007_train.txt voc_2007_val.txt voc_2012_train.txt voc_2012_val.txt`
-  合并成一个文件，如在linux中，可使用命令：
-  `cat voc_2007_train.txt voc_2007_val.txt voc_2012_* > train.txt`
+  合并成一个文件，如在 linux 中，可使用命令 `cat voc_2007_train.txt voc_2007_val.txt voc_2012_* > train.txt`
 
   **注意：取决于 `VOCdevkit` 的位置，可能需要改变 `voc_label_bbox.py` 中的 `VOC_root` 参数， 以明确 `VOCdevkit` 所处的路径，默认在 'data' 目录下**
 
