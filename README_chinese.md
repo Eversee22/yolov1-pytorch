@@ -14,9 +14,9 @@ YOLOv1的pytorch版本，但使用了不同的主干网络, 损失函数的计�
 - visdom(optional)
 
 ## 使用
-首先你需要下载并转换到当前分支:
-git clone https://https://github.com/Eversee22/yolov1-pytorch/
-cd yolov1-pytorch
+首先你需要下载并转换到当前分支: 
+git clone https://https://github.com/Eversee22/yolov1-pytorch/ 
+cd yolov1-pytorch 
 git checkout exp1-loss
 
 
