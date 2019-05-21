@@ -76,7 +76,7 @@ def test_many(model_name,test_file,weight, prob_thresh=0.1, nms_thresh=0.5, mode
     print("detecting")
     images = []
     try:
-        images = [os.path.join(test_file, img) for img in os.listdir(test_file)]
+        images = [os.path.join(test_file, img) for img in os.listdir(test_file) if img.endswith('.jpg') or img.endswith('.png')]
     except NotADirectoryError:
         try:
             with open(test_file) as f:
@@ -93,7 +93,7 @@ def test_many(model_name,test_file,weight, prob_thresh=0.1, nms_thresh=0.5, mode
     random.shuffle(images)
     since = time.time()
     for imp in images:
-        # print(imp)
+        print(imp)
         image = cv2.imread(imp)
         h, w, _ = image.shape
         pred = get_pred(image,model,use_gpu)
@@ -177,7 +177,7 @@ def arg_parse():
     arg_parser.add_argument("-i", dest="imgn", help="image name", type=str)
     arg_parser.add_argument("-m",dest="mn", default="resnet50", help="model name", type=str)
     arg_parser.add_argument("--mode", dest="mode", default=1, help="model save mode", type=int)
-    arg_parser.add_argument("--nms", dest="nms", default=0.5, help="nms thresh", type=float)
+    arg_parser.add_argument("--nms", dest="nms", default=0.4, help="nms thresh", type=float)
     arg_parser.add_argument("--thresh", dest="thresh", default=0.2, help="confidence thresh", type=float)
     arg_parser.add_argument("--pd", dest="pd", default=1, help="post deal", type=int)
     arg_parser.add_argument("weight", nargs=1, help="weight file", type=str)
@@ -202,14 +202,15 @@ if __name__ == '__main__':
     pd = args.pd
     thresh = args.thresh
     weight = args.weight[0]
+    use_gpu = torch.cuda.is_available() and True
 
     if do == "test":
-        test(model_name, image_name, weight,thresh,nms, mode, use_gpu=False)
+        test(model_name, image_name, weight,thresh, nms, mode, use_gpu=use_gpu)
     elif do == "test2":
-        test_many(model_name, image_name, weight, thresh, nms, mode,pd=pd)
+        test_many(model_name, image_name, weight, thresh, nms, mode,pd=pd,use_gpu=use_gpu)
     elif do == "test3":
-        test_canvas(model_name, image_name, weight, thresh, nms, mode)
+        test_canvas(model_name, image_name, weight, thresh, nms, mode,use_gpu=use_gpu)
     elif do == "eval":
-        predict_eval(image_name,model_name,weight)
+        predict_eval(image_name,model_name,weight,use_gpu=use_gpu)
     elif do == "eval2":
-        eval_voc.eval(image_name,model_name,weight)
+        eval_voc.eval(image_name,model_name,weight,use_gpu=use_gpu)

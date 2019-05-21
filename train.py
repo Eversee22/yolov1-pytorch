@@ -261,11 +261,3 @@ scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=steps, gamma=0.1, 
 if not os.path.exists('backup'):
     os.mkdir('backup')
 train_model(model_ft, criterion, optimizer_ft, scheduler, num_epochs=num_epochs,dyn=False)
-
-
-
-
-
-
-
-

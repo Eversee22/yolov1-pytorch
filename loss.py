@@ -51,7 +51,7 @@ class YOLOLoss(nn.Module):
         return iou
 
     def forward(self, preds, labels):
-        return self.loss_2(preds, labels)
+        return self.loss_1(preds, labels)
 
     def loss_1(self,preds,labels):
         '''
@@ -468,5 +468,3 @@ if __name__ == '__main__':
     loss_1 =yololoss.loss_2(pred,target)
     print(loss)  # 181.4906
     print(loss_1)
-
-
