@@ -1,5 +1,5 @@
 ## yolov1-pytorch
-YOLOv1的pytorch版本，但使用了不同的主干网络，损失函数的计算上也有所差异，不过取得了比较不错的结果:
+基于YOLOv1的pytorch实现，但使用了不同的主干网络，没有全连接层，损失函数的计算上也有所差异，不过取得了比较不错的结果:
 
 | model(Train on voc2012+2007)|  backbone          | map@voc2007test | FPS(Geforce GTX 1070)  |
 | --------------------        |  ------------      | ----------      | -------   |
@@ -40,11 +40,11 @@ YOLOv1的pytorch版本，但使用了不同的主干网络，损失函数的计�
 
   * 视频
 
-    `python video.py -i videofile weights.pth`
+    `python video.py -i yourvideofile weights.pth`
 
     以上命令对视频检测，会显示实时的视频检测结果，取决于具体的硬件，检测帧率可能会有差异，若想以原视频的帧率保存检测后的视频，使用以下命令：  
 
-    `python video.py -i videofile --dv 1 weights.pth`
+    `python video.py -i yourvideofile --dv 1 weights.pth`
 
     将以avi格式保存视频，默认在local目录中。
 
