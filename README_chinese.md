@@ -34,7 +34,7 @@
 
     `python detect.py -i data -t test2 weights.pth `
 
-    或者输入列有图片路径的文件检测：  
+    或者输入列有图片路径的文件：  
 
     `python detect.py -i 2007_test.txt -t test2 weights.pth`
 
@@ -51,7 +51,7 @@
   **注意: 默认采用 ResNet50_14x14 的模型，若使用 7x7 的模型，需要更改 `cfg` 目录下的 `yolond` 文件，将 `side` 改为 7，`downsm` 改为 1.**
 
 ## 训练  
-  下载 VOC2007 和 VOC2012 数据集，可参考如下链接：  
+  下载 VOC 2007 和 VOC 2012 数据集，可参考如下链接：  
   ```
   https://pjreddie.com/media/files/VOCtrainval_11-May-2012.tar
   https://pjreddie.com/media/files/VOCtrainval_06-Nov-2007.tar
