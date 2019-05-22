@@ -45,12 +45,16 @@ class VGG(nn.Module):
 
     def forward(self, x):
         x = self.features(x)
-        x = x.view(x.size(0), -1)
+        # print("features out:{}".format(x.shape))
+        # x = x.view(x.size(0), -1)
         x = self.classifier(x)
+        # print("classfier out:{}".format(x.shape))
 
         # added
         x = torch.sigmoid(x)
-        x = x.view(-1, self.side, self.side, self.num*5+self.classes)
+        # assert x.shape[1] == self.num * 5 + self.classes and x.shape[2] == self.side
+        # x = x.view(-1, self.num * 5 + self.classes, self.side, self.side)
+        x = x.permute(0, 2, 3, 1)
 
         return x
 
@@ -73,10 +77,14 @@ def make_layers(cfg, batch_norm=False):
     layers = []
     in_channels = 3
     first64 = True
+    pooln = 0
 
     for v in cfg:
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+            # pooln += 1
+            # if pooln == 4:
+            #     break
         else:
             stride = 1
             if v == 64 and first64:

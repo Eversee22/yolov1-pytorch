@@ -50,32 +50,6 @@ def bbox_iou(box1, box2, mode=0):
     return iou
 
 
-def bbox_iou2(box1, box2):
-    '''
-    box1,box2: [xmin,ymin,xmax,ymax], value:0.0~1.0
-    '''
-    b1_x1, b1_y1, b1_x2, b1_y2 = box1[0], box1[1], box1[2], box1[3]
-    b2_x1, b2_y1, b2_x2, b2_y2 = box2[0], box2[1], box2[2], box2[3]
-
-    inter_rect_x1 = np.maximum(b1_x1, b2_x1)
-    inter_rect_y1 = np.maximum(b1_y1, b2_y1)
-    inter_rect_x2 = np.minimum(b1_x2, b2_x2)
-    inter_rect_y2 = np.minimum(b1_y2, b2_y2)
-
-    # print(inter_rect_x1,inter_rect_x2,inter_rect_y1,inter_rect_y2)
-
-    # Intersection area
-    inter_area = np.maximum(inter_rect_x2 - inter_rect_x1, 0) * np.maximum(inter_rect_y2 - inter_rect_y1, 0)
-
-    # Union Area
-    b1_area = (b1_x2 - b1_x1) * (b1_y2 - b1_y1)
-    b2_area = (b2_x2 - b2_x1) * (b2_y2 - b2_y1)
-
-    iou = inter_area / (b1_area + b2_area - inter_area)
-
-    return iou
-
-
 def convert_box(box, h, w, mode=0, inp_size=448):
     # scale = inp_size/np.array((w, h))
     if mode == 1:
@@ -87,8 +61,12 @@ def convert_box(box, h, w, mode=0, inp_size=448):
 
     if xmin < 0: xmin = 0
     if ymin < 0: ymin = 0
-    if xmax > w-1: xmax = w-1
-    if ymax > h-1: ymax = h-1
+    if mode < 2:
+        if xmax > w-1: xmax = w-1
+        if ymax > h-1: ymax = h-1
+    else:
+        if xmax > w: xmax = w
+        if ymax > h: ymax = h
 
     return xmin, ymin, xmax, ymax
 
@@ -106,14 +84,24 @@ def imwrite(image, bbox, class_name, cls_ind, prob=None):
 
     img = image
     color = get_color(cls_ind)
-    label = "{}".format(class_name)
-    if prob is not None:
-        label += str(round(prob, 2))
+    label = ''
+    if isinstance(class_name,list):
+        if prob is not None:
+            nlen = len(class_name)
+            for i in range(nlen-1):
+                label += class_name[i]+'{:.2f},'.format(prob[i])
+            label += class_name[nlen-1] + '{:.2f}'.format(prob[nlen-1])
+        else:
+            label = ','.join(class_name)
+    elif prob is not None:
+        label = class_name+'{:.2f}'.format(prob)
+    else:
+        label = class_name
     cv2.rectangle(img, c1, c2, color, 2)
-    t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1 , 1)[0]
+    t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1, 1)[0]
     c2 = c1[0] + t_size[0] + 3, c1[1] + t_size[1] + 4
     cv2.rectangle(img, c1, c2, color, -1)
-    cv2.putText(img, label, (c1[0], c1[1] + t_size[1] + 4), cv2.FONT_HERSHEY_PLAIN, 1, [225,255,255], 1);
+    cv2.putText(img, label, (c1[0], c1[1] + t_size[1] + 4), cv2.FONT_HERSHEY_PLAIN, 1, [0,0,0], 1);
 
     return img
 

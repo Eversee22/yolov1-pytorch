@@ -4,8 +4,9 @@ results/
 utils/
 log/
 imgs/
+weights/
+.idea
 ./*.png
 ./*.jpg
 *.txt
-.idea
 *.pyc

@@ -1,10 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from util import readcfg
+
+d = readcfg('cfg/yolond')
+softmax = int(d['softmax'])
+class_num = int(d['classes'])
 
 
 class YOLOLoss(nn.Module):
-    def __init__(self, side, num, sqrt, coord_scale, noobj_scale, use_gpu=True):
+    def __init__(self, side, num, sqrt, coord_scale, noobj_scale, use_gpu=True,vis=None):
         super(YOLOLoss, self).__init__()
         self.side = side
         self.num = num
@@ -13,6 +18,7 @@ class YOLOLoss(nn.Module):
         self.sqrt = sqrt
         # self.use_gpu = torch.cuda.is_available()
         self.use_gpu = use_gpu
+        self.vis = vis
 
     def compute_iou(self, box1, box2):
         """
@@ -46,6 +52,316 @@ class YOLOLoss(nn.Module):
 
     def forward(self, preds, labels):
         return self.loss_1(preds, labels)
+
+    def loss_1(self,preds,labels):
+        '''
+        preds: (tensor) size(batchsize,S,S,Bx5+20) [x,y,w,h,c]
+        labels: (tensor) size(batchsize,S,S,Bx5+20)
+        '''
+
+        # print(preds.shape)
+        # print(labels.shape)
+
+        N = preds.size(0)
+        bbox_size = self.num * 5
+        cell_size = bbox_size + 20
+
+        obj_mask = labels[:, :, :, 4] > 0
+        noobj_mask = labels[:, :, :, 4] == 0
+        obj_mask = obj_mask.unsqueeze(-1).expand_as(labels)
+        noobj_mask = noobj_mask.unsqueeze(-1).expand_as(labels)
+
+        obj_pred = preds[obj_mask].view(-1, cell_size)
+        box_pred = obj_pred[:, :bbox_size].contiguous().view(-1, 5)
+        class_pred = obj_pred[:, bbox_size:]
+
+        obj_label = labels[obj_mask].view(-1, cell_size)
+        box_label = obj_label[:, :bbox_size].contiguous().view(-1, 5)
+        class_label = obj_label[:, bbox_size:]
+
+        # compute not containing loss
+        noobj_pred = preds[noobj_mask].view(-1, cell_size)
+        noobj_label = labels[noobj_mask].view(-1, cell_size)
+        noobj_pred_mask = torch.ByteTensor(noobj_pred.size()).zero_()
+        if self.use_gpu:
+            noobj_pred_mask = noobj_pred_mask.cuda()
+        for i in range(self.num):
+            noobj_pred_mask[:, i * 5 + 4] = 1
+        noobj_pred_c = noobj_pred[noobj_pred_mask]
+        noobj_label_c = noobj_label[noobj_pred_mask]
+        noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
+
+        # object containing loss
+        obj_response_mask = torch.ByteTensor(box_label.size()).zero_()
+        if self.use_gpu:
+            obj_response_mask = obj_response_mask.cuda()
+        obj_not_response_mask = torch.ByteTensor(box_label.size()).zero_()
+        if self.use_gpu:
+            obj_not_response_mask = obj_not_response_mask.cuda()
+        box_label_iou = torch.zeros(box_label.size())
+        if self.use_gpu:
+            box_label_iou = box_label_iou.cuda()
+
+        s = 1/self.side
+        for i in range(0, box_label.size(0), self.num):
+            box1 = box_pred[i:i+self.num]
+            box1_coord = torch.FloatTensor(box1.size())
+            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
+            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
+
+            box2 = box_label[i].view(-1, 5)
+            box2_coord = torch.FloatTensor(box2.size())
+            box2_coord[:, :2] = box2[:, :2] * s - 0.5 * box2[:, 2:4]
+            box2_coord[:, 2:4] = box2[:, :2] * s + 0.5 * box2[:, 2:4]
+            iou = self.compute_iou(box1_coord[:, :4], box2_coord[:, :4])
+            # print(iou.shape)
+            # assert iou.shape[0] == self.num
+
+            max_iou, max_index = iou.max(0)
+
+            obj_response_mask[i + max_index] = 1
+            # obj_not_response_mask[i + 1 - max_index] = 1
+            obj_not_response_mask[i:i + self.num] = 1
+            obj_not_response_mask[i + max_index] = 0
+
+            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data.cuda()  # no grad
+
+        # response loss
+        box_pred_response = box_pred[obj_response_mask].view(-1, 5)
+        box_label_response_iou = box_label_iou[obj_response_mask].view(-1, 5)
+        box_label_response = box_label[obj_response_mask].view(-1, 5)
+        response_loss = F.mse_loss(box_pred_response[:, 4], box_label_response_iou[:, 4], reduction="sum")
+        xy_loss = F.mse_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
+        wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
+
+        # not response loss
+        box_pred_not_response = box_pred[obj_not_response_mask].view(-1, 5)
+        box_label_not_response = box_label[obj_not_response_mask].view(-1, 5)
+        box_label_not_response[:, 4] = 0
+        not_response_loss = F.mse_loss(box_pred_not_response[:, 4], box_label_not_response[:, 4], reduction="sum")
+
+        # class loss
+        class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
+
+        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+0.5*self.noobj_scale*noobj_loss+class_loss
+
+        return total_loss / N
+
+    def loss_2(self,preds,labels):
+        '''
+
+        preds: (tensor) size(batchsize,S,S,Bx5+20) [x,y,w,h,c]
+        labels: (tensor) size(batchsize,S,S,Bx5+20)
+
+        '''
+
+        # print(preds.shape)
+        # print(labels.shape)
+
+        N = preds.size(0)
+        bbox_size = self.num * 5
+        cell_size = bbox_size + 20
+
+        obj_mask = labels[:, :, :, 4] > 0
+        noobj_mask = labels[:, :, :, 4] == 0
+        obj_mask = obj_mask.unsqueeze(-1).expand_as(labels)
+        noobj_mask = noobj_mask.unsqueeze(-1).expand_as(labels)
+
+        obj_pred = preds[obj_mask].view(-1, cell_size)
+        box_pred = obj_pred[:, :bbox_size].contiguous().view(-1, 5)  # continuous copy
+        class_pred = obj_pred[:, bbox_size:]
+
+        obj_label = labels[obj_mask].view(-1, cell_size)
+        box_label = obj_label[:, :bbox_size].contiguous().view(-1, 5)
+        class_label = obj_label[:, bbox_size:]
+
+        # compute not containing loss
+        noobj_pred = preds[noobj_mask].view(-1, cell_size)
+        noobj_label = labels[noobj_mask].view(-1, cell_size)
+        noobj_pred_mask = torch.ByteTensor(noobj_pred.size()).zero_()
+        if self.use_gpu:
+            noobj_pred_mask = noobj_pred_mask.cuda()
+        for i in range(self.num):
+            noobj_pred_mask[:, i * 5 + 4] = 1  # just need confidence
+        noobj_pred_c = noobj_pred[noobj_pred_mask]
+        noobj_label_c = noobj_label[noobj_pred_mask]
+        noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
+        noobj_loss *= self.noobj_scale*0.5
+
+        # object containing loss
+        obj_response_mask = torch.ByteTensor(box_label.size()).zero_()
+        if self.use_gpu:
+            obj_response_mask = obj_response_mask.cuda()
+        obj_not_response_mask = torch.ByteTensor(box_label.size()).zero_()
+        if self.use_gpu:
+            obj_not_response_mask = obj_not_response_mask.cuda()
+        box_label_iou = torch.zeros(box_label.size())
+        if self.use_gpu:
+            box_label_iou = box_label_iou.cuda()
+
+        s = 1/self.side
+        for i in range(0, box_label.size(0), self.num):
+            box1 = box_pred[i:i + self.num]
+            box1_coord = torch.FloatTensor(box1.size())  # Variable
+            box2 = box_label[i].view(-1, 5)
+            box2_coord = torch.FloatTensor(box2.size())  # Variable
+            # if self.sqrt:
+            #     box1_coord[:, :2] = box1[:, :2] * s - 0.5 * torch.pow(box1[:, 2:4], 2)
+            #     box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * torch.pow(box1[:, 2:4], 2)
+            # else:
+            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
+            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
+            box2_coord[:, :2] = box2[:, :2] * s - 0.5 * box2[:, 2:4]
+            box2_coord[:, 2:4] = box2[:, :2] * s + 0.5 * box2[:, 2:4]
+            iou = self.compute_iou(box1_coord[:, :4], box2_coord[:, :4])
+            # print(iou.shape)
+            # assert iou.shape[0] == self.num
+
+            max_iou, max_index = iou.max(0)
+            # max_index = max_index.data.cuda()
+
+            obj_response_mask[i + max_index] = 1
+            # obj_not_response_mask[i + 1 - max_index] = 1
+            obj_not_response_mask[i:i + self.num] = 1
+            obj_not_response_mask[i + max_index] = 0
+
+            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data.cuda()
+
+        # response loss
+        box_pred_response = box_pred[obj_response_mask].view(-1, 5)
+        box_label_response_iou = box_label_iou[obj_response_mask].view(-1, 5)
+        box_label_response = box_label[obj_response_mask].view(-1, 5)
+        response_loss = F.mse_loss(box_pred_response[:, 4], box_label_response_iou[:, 4], reduction="sum")
+        xy_loss = F.mse_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
+        # xy_loss = F.smooth_l1_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
+        if self.sqrt:
+            wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
+            # wh_loss = F.smooth_l1_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
+            # scale = 4. * torch.sigmoid(torch.abs(box_pred_response[:, 2:4] / box_label_response[:, 2:4] - 1))
+            # wh_loss = torch.sum(scale * torch.pow(box_pred_response[:, 2:4] - box_label_response[:, 2:4], 2))
+        else:
+            wh_loss = F.mse_loss(box_pred_response[:, 2:4], box_label_response[:, 2:4], reduction="sum")
+        xy_loss *= self.coord_scale
+        wh_loss *= self.coord_scale
+        response_loss *= 2.0
+        # not response loss
+        box_pred_not_response = box_pred[obj_not_response_mask].view(-1, 5)
+        box_label_not_response = box_label[obj_not_response_mask].view(-1, 5)
+        box_label_not_response[:, 4] = 0
+        not_response_loss = F.mse_loss(box_pred_not_response[:, 4], box_label_not_response[:, 4], reduction="sum")
+        not_response_loss *= 1.0
+
+        # class loss
+        # if softmax:
+        #     class_loss = F.cross_entropy(class_pred, class_label.max(1)[1], reduction="sum")
+        # else:
+        class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
+        # class_loss = F.binary_cross_entropy(class_pred, class_label, reduction='sum')
+        # class_loss *= 0.5
+
+        print("xy loss:{:.4f},wh loss:{:.4f},resp loss:{:.4f},non-resp loss:{:.4f},noobj loss:{:.4f},class loss:{:.4f}".format(
+                xy_loss, wh_loss, response_loss, not_response_loss, noobj_loss, class_loss))
+        # print('coord loos:class loss {:.3f}'.format((xy_loss+wh_loss)/class_loss))
+        total_loss = (xy_loss + wh_loss) + response_loss + not_response_loss + noobj_loss + class_loss
+        if self.vis is not None:
+            self.vis.plot_many_stack({'xy': xy_loss.item(),'wh': wh_loss.item(),
+                                      'resp':response_loss.item(),'non-resp':not_response_loss.item(),
+                                      'noobj':noobj_loss.item(),
+                                      'class':class_loss.item()},'iter','losses')
+
+        return total_loss / N
+
+    def loss_3(self,preds,labels):
+        '''
+        preds: (tensor) size(batchsize,S,S,Bx(5+20)) [x,y,w,h,c]
+        labels: (tensor) size(batchsize,S,S,Bx(5+20))
+        '''
+
+        # print(preds.shape)
+        # print(labels.shape)
+
+        N = preds.size(0)
+        bbox_size = 5 + class_num
+        # cell_size = bbox_size*self.num
+
+        obj_mask = labels[:, :, :, 4] > 0
+        noobj_mask = labels[:, :, :, 4] == 0
+        obj_mask = obj_mask.unsqueeze(-1).expand_as(labels)
+        noobj_mask = noobj_mask.unsqueeze(-1).expand_as(labels)
+
+        # containing
+        obj_pred = preds[obj_mask].view(-1, bbox_size)
+        obj_label = labels[obj_mask].view(-1, bbox_size)
+
+        # not containing
+        noobj_pred = preds[noobj_mask].view(-1, bbox_size)
+        noobj_label = labels[noobj_mask].view(-1, bbox_size)
+
+        # not containing loss
+        noobj_loss = F.mse_loss(noobj_pred[:, 4], noobj_label[:, 4], reduction="sum")
+        noobj_loss *= self.noobj_scale
+
+        obj_response_mask = torch.ByteTensor(obj_pred.size()).zero_()
+        if self.use_gpu:
+            obj_response_mask = obj_response_mask.cuda()
+        obj_not_response_mask = torch.ByteTensor(obj_pred.size()).zero_()
+        if self.use_gpu:
+            obj_not_response_mask = obj_not_response_mask.cuda()
+        box_label_iou = torch.zeros(obj_pred.size())
+        if self.use_gpu:
+            box_label_iou = box_label_iou.cuda()
+
+        s = 1/self.side
+        for i in range(0, obj_pred.size(0), self.num):
+            box1 = obj_pred[i:i+self.num, :4]
+            box1_coord = torch.FloatTensor(box1.size())
+            box2 = obj_label[i, :4].view(-1, 4)
+            box2_coord = torch.FloatTensor(box2.size())
+            # if self.sqrt:
+            #     box1_coord[:, :2] = box1[:, :2] * s - 0.5 * torch.pow(box1[:, 2:4], 2)
+            #     box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * torch.pow(box1[:, 2:4], 2)
+            # else:
+            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
+            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
+            box2_coord[:, :2] = box2[:, :2] * s - 0.5 * box2[:, 2:4]
+            box2_coord[:, 2:4] = box2[:, :2] * s + 0.5 * box2[:, 2:4]
+
+            iou = self.compute_iou(box1_coord, box2_coord)
+            max_iou, max_index = iou.max(0)
+
+            obj_response_mask[i+max_index] = 1
+            obj_not_response_mask[i:i+self.num] = 1
+            obj_not_response_mask[i+max_index] = 0
+
+            box_label_iou[i+max_index, torch.LongTensor([4])] = max_iou.data.cuda()  # no grad
+
+        box_pred_response = obj_pred[obj_response_mask].view(-1, bbox_size)
+        box_label_response_iou = box_label_iou[obj_response_mask].view(-1, bbox_size)
+        box_label_response = obj_label[obj_response_mask].view(-1, bbox_size)
+
+        # response loss
+        response_loss = F.mse_loss(box_pred_response[:, 4], box_label_response_iou[:, 4], reduction="sum")
+        xy_loss = F.mse_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
+        wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:, 2:4]), torch.sqrt(box_label_response[:, 2:4]), reduction="sum")
+        xy_loss *= self.coord_scale
+        wh_loss *= self.coord_scale
+        response_loss *= 2.0
+
+        # not response loss
+        box_pred_not_response = obj_pred[obj_not_response_mask].view(-1, bbox_size)
+        box_label_not_response = obj_label[obj_not_response_mask].view(-1, bbox_size)
+        box_label_not_response[:, 4] = 0
+        not_response_loss = F.mse_loss(box_pred_not_response[:, 4], box_label_not_response[:, 4], reduction="sum")
+
+        # class loss
+        class_loss = F.mse_loss(obj_pred[:, 5:], obj_label[:, 5:], reduction='sum')
+        # class_loss = F.binary_cross_entropy(obj_pred[:, 5:], obj_label[:, 5:], reduction="sum")
+
+        print("xy loss:{:.4f},wh loss:{:.4f},resp loss:{:.4f},non-resp loss:{:.4f},noobj loss:{:.4f},class loss:{:.4f}".format(
+            xy_loss,wh_loss,response_loss,not_response_loss,noobj_loss,class_loss))
+        total_loss = (xy_loss+wh_loss)+response_loss+not_response_loss+noobj_loss+class_loss
+
+        return total_loss / N
 
     # def loss(self, preds, labels):
     #     """
@@ -142,110 +458,13 @@ class YOLOLoss(nn.Module):
     #
     #     return cost
 
-    def loss_1(self,preds,labels):
-        '''
-
-        preds: (tensor) size(batchsize,S,S,Bx5+20) [x,y,w,h,c]
-        labels: (tensor) size(batchsize,S,S,Bx5+20)
-
-        '''
-
-        # print(preds.shape)
-        # print(labels.shape)
-
-        N = preds.size(0)
-        bbox_size = self.num * 5
-        cell_size = bbox_size + 20
-
-        # preds = preds.view(-1, self.side, self.side, cell_size)
-        #labels = labels.view(-1, self.side, self.side, cell_size)
-
-        obj_mask = labels[:, :, :, 4] > 0
-        noobj_mask = labels[:, :, :, 4] == 0
-        obj_mask = obj_mask.unsqueeze(-1).expand_as(labels)
-        noobj_mask = noobj_mask.unsqueeze(-1).expand_as(labels)
-
-        obj_pred = preds[obj_mask].view(-1, cell_size)
-        box_pred = obj_pred[:, :bbox_size].contiguous().view(-1, 5)
-        class_pred = obj_pred[:, bbox_size:]
-
-        obj_label = labels[obj_mask].view(-1, cell_size)
-        box_label = obj_label[:, :bbox_size].contiguous().view(-1, 5)
-        class_label = obj_label[:, bbox_size:]
-
-        # compute not containing loss
-        noobj_pred = preds[noobj_mask].view(-1, cell_size)
-        noobj_label = labels[noobj_mask].view(-1, cell_size)
-        noobj_pred_mask = torch.ByteTensor(noobj_pred.size()).zero_()
-        for i in range(self.num):
-            noobj_pred_mask[:, i * 5 + 4] = 1
-        noobj_pred_c = noobj_pred[noobj_pred_mask]
-        noobj_label_c = noobj_label[noobj_pred_mask]
-        noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
-
-        # object containing loss
-        obj_response_mask = torch.cuda.ByteTensor(box_label.size())
-        obj_response_mask.zero_()
-        obj_not_response_mask = torch.cuda.ByteTensor(box_label.size())
-        obj_not_response_mask.zero_()
-        box_label_iou = torch.zeros(box_label.size())
-        if self.use_gpu:
-            box_label_iou = box_label_iou.cuda()
-
-        s = 1/self.side
-        for i in range(0, box_label.size(0), self.num):
-            box1 = box_pred[i:i + self.num]
-            box1_coord = torch.FloatTensor(box1.size())  # Variable
-            box1_coord[:, :2] = box1[:, :2] * s - 0.5 * box1[:, 2:4]
-            box1_coord[:, 2:4] = box1[:, :2] * s + 0.5 * box1[:, 2:4]
-
-            box2 = box_label[i].view(-1, 5)
-            box2_coord = torch.FloatTensor(box2.size())  # Variable
-            box2_coord[:, :2] = box2[:, :2] * s - 0.5 * box2[:, 2:4]
-            box2_coord[:, 2:4] = box2[:, :2] * s + 0.5 * box2[:, 2:4]
-            iou = self.compute_iou(box1_coord[:, :4], box2_coord[:, :4])
-            # print(iou.shape)
-            # assert iou.shape[0] == self.num
-
-            max_iou, max_index = iou.max(0)
-            # max_index = max_index.data.cuda()
-
-            obj_response_mask[i + max_index] = 1
-            # obj_not_response_mask[i + 1 - max_index] = 1
-            obj_not_response_mask[i:i + self.num] = 1
-            obj_not_response_mask[i + max_index] = 0
-
-            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data.cuda()
-
-        # response loss
-        box_pred_response = box_pred[obj_response_mask].view(-1, 5)
-        box_label_response_iou = box_label_iou[obj_response_mask].view(-1, 5)
-        box_label_response = box_label[obj_response_mask].view(-1, 5)
-        response_loss = F.mse_loss(box_pred_response[:, 4], box_label_response_iou[:, 4], reduction="sum")
-        xy_loss = F.mse_loss(box_pred_response[:, :2], box_label_response[:, :2], reduction="sum")
-        wh_loss = F.mse_loss(torch.sqrt(box_pred_response[:,2:4]), torch.sqrt(box_label_response[:,2:4]), reduction="sum")
-
-        # not response loss
-        box_pred_not_response = box_pred[obj_not_response_mask].view(-1, 5)
-        box_label_not_response = box_label[obj_not_response_mask].view(-1, 5)
-        box_label_not_response[:, 4] = 0
-        not_response_loss = F.mse_loss(box_pred_not_response[:, 4], box_label_not_response[:, 4], reduction="sum")
-
-        # class loss
-        class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
-
-        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+self.noobj_scale*noobj_loss+class_loss
-
-        return total_loss / N
-
 
 if __name__ == '__main__':
     yololoss = YOLOLoss(14,2,1,5,.5)
     torch.manual_seed(1)
     pred = torch.rand(1, 14, 2, 30).cuda()
     target = torch.rand(pred.shape).cuda()
-    loss = yololoss(pred, target)
-    # loss_1 =yololoss.loss(pred,target)
-    print(loss)
-
-
+    loss = yololoss.loss_1(pred, target)
+    loss_1 =yololoss.loss_2(pred,target)
+    print(loss)  # 181.4906
+    print(loss_1)
