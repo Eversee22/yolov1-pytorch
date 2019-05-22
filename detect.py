@@ -9,12 +9,12 @@ import eval_voc
 # side = int(d['side'])
 # num = int(d['num'])
 # classes = int(d['classes'])
-# inp_size = int(d['inp_size'])
+inp_size = int(d['inp_size'])
 
 
 def test_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4, mode=1,use_gpu=True):
     print('load weight')
-    model = load_model(model_name, weight, mode)
+    model = load_model(model_name, weight, mode,use_gpu)
     if use_gpu:
         model.cuda()
     print("detecting")
@@ -34,15 +34,16 @@ def test_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4,
     probs = np.zeros((side * side * num, classes))
     boxes = np.zeros((side * side * num, 4))
     get_detection_boxes(pred, prob_thresh, nms_thresh, boxes, probs)
+	
     # im_dim = torch.FloatTensor(im_dim).repeat(1, 2).numpy()
     scaling_factor = np.min(inp_size / im_dim)
-
+	
     for i in range(probs.shape[0]):
         cls = np.argmax(probs[i])
         prob = probs[i][cls]
         if prob > 0:
             out = np.zeros(6)
-            out[:4] = boxes[i]*inp_size
+            out[:4] = correct_box(boxes[i],inp_size,inp_size)
             out[[0,2]] -= (inp_size-scaling_factor*im_dim[0])/2
             out[[1,3]] -= (inp_size-scaling_factor*im_dim[1])/2
 
