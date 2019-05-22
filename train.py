@@ -240,7 +240,7 @@ assert model_ft is not None
 model_ft.to(device)
 
 # vis = Visualizer('cood2loss_2_cmp_{}'.format(time.strftime('%m%d%H%M')))
-criterion = YOLOLoss(side=side, num=num, sqrt=sqrt, coord_scale=coord_scale, noobj_scale=noobj_scale, vis=vis)
+criterion = YOLOLoss(side=side, num=num, sqrt=sqrt, coord_scale=coord_scale, noobj_scale=noobj_scale, vis=vis,device=device)
 
 # params=[]
 # params_dict = dict(model_ft.named_parameters())

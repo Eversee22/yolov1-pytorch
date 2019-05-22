@@ -9,7 +9,7 @@ class_num = int(d['classes'])
 
 
 class YOLOLoss(nn.Module):
-    def __init__(self, side, num, sqrt, coord_scale, noobj_scale, use_gpu=True,vis=None):
+    def __init__(self, side, num, sqrt, coord_scale, noobj_scale, use_gpu=True,vis=None,device=None):
         super(YOLOLoss, self).__init__()
         self.side = side
         self.num = num
@@ -18,6 +18,9 @@ class YOLOLoss(nn.Module):
         self.sqrt = sqrt
         # self.use_gpu = torch.cuda.is_available()
         self.use_gpu = use_gpu
+        self.device = torch.device('cuda:0' if use_gpu else 'cpu')
+        if device is not None:
+            self.device = device
         self.vis = vis
 
     def compute_iou(self, box1, box2):
@@ -84,7 +87,7 @@ class YOLOLoss(nn.Module):
         noobj_label = labels[noobj_mask].view(-1, cell_size)
         noobj_pred_mask = torch.ByteTensor(noobj_pred.size()).zero_()
         if self.use_gpu:
-            noobj_pred_mask = noobj_pred_mask.cuda()
+            noobj_pred_mask = noobj_pred_mask.to(self.device)
         for i in range(self.num):
             noobj_pred_mask[:, i * 5 + 4] = 1
         noobj_pred_c = noobj_pred[noobj_pred_mask]
@@ -94,13 +97,13 @@ class YOLOLoss(nn.Module):
         # object containing loss
         obj_response_mask = torch.ByteTensor(box_label.size()).zero_()
         if self.use_gpu:
-            obj_response_mask = obj_response_mask.cuda()
+            obj_response_mask = obj_response_mask.to(self.device)
         obj_not_response_mask = torch.ByteTensor(box_label.size()).zero_()
         if self.use_gpu:
-            obj_not_response_mask = obj_not_response_mask.cuda()
+            obj_not_response_mask = obj_not_response_mask.to(self.device)
         box_label_iou = torch.zeros(box_label.size())
         if self.use_gpu:
-            box_label_iou = box_label_iou.cuda()
+            box_label_iou = box_label_iou.to(self.device)
 
         s = 1/self.side
         for i in range(0, box_label.size(0), self.num):
@@ -124,7 +127,7 @@ class YOLOLoss(nn.Module):
             obj_not_response_mask[i:i + self.num] = 1
             obj_not_response_mask[i + max_index] = 0
 
-            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data.cuda()  # no grad
+            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data  # no grad
 
         # response loss
         box_pred_response = box_pred[obj_response_mask].view(-1, 5)
@@ -180,7 +183,7 @@ class YOLOLoss(nn.Module):
         noobj_label = labels[noobj_mask].view(-1, cell_size)
         noobj_pred_mask = torch.ByteTensor(noobj_pred.size()).zero_()
         if self.use_gpu:
-            noobj_pred_mask = noobj_pred_mask.cuda()
+            noobj_pred_mask = noobj_pred_mask.to(self.device)
         for i in range(self.num):
             noobj_pred_mask[:, i * 5 + 4] = 1  # just need confidence
         noobj_pred_c = noobj_pred[noobj_pred_mask]
@@ -191,13 +194,13 @@ class YOLOLoss(nn.Module):
         # object containing loss
         obj_response_mask = torch.ByteTensor(box_label.size()).zero_()
         if self.use_gpu:
-            obj_response_mask = obj_response_mask.cuda()
+            obj_response_mask = obj_response_mask.to(self.device)
         obj_not_response_mask = torch.ByteTensor(box_label.size()).zero_()
         if self.use_gpu:
-            obj_not_response_mask = obj_not_response_mask.cuda()
+            obj_not_response_mask = obj_not_response_mask.to(self.device)
         box_label_iou = torch.zeros(box_label.size())
         if self.use_gpu:
-            box_label_iou = box_label_iou.cuda()
+            box_label_iou = box_label_iou.to(self.device)
 
         s = 1/self.side
         for i in range(0, box_label.size(0), self.num):
@@ -225,7 +228,7 @@ class YOLOLoss(nn.Module):
             obj_not_response_mask[i:i + self.num] = 1
             obj_not_response_mask[i + max_index] = 0
 
-            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data.cuda()
+            box_label_iou[i + max_index, torch.LongTensor([4])] = max_iou.data
 
         # response loss
         box_pred_response = box_pred[obj_response_mask].view(-1, 5)
@@ -303,13 +306,13 @@ class YOLOLoss(nn.Module):
 
         obj_response_mask = torch.ByteTensor(obj_pred.size()).zero_()
         if self.use_gpu:
-            obj_response_mask = obj_response_mask.cuda()
+            obj_response_mask = obj_response_mask.to(self.device)
         obj_not_response_mask = torch.ByteTensor(obj_pred.size()).zero_()
         if self.use_gpu:
-            obj_not_response_mask = obj_not_response_mask.cuda()
+            obj_not_response_mask = obj_not_response_mask.to(self.device)
         box_label_iou = torch.zeros(obj_pred.size())
         if self.use_gpu:
-            box_label_iou = box_label_iou.cuda()
+            box_label_iou = box_label_iou.to(self.device)
 
         s = 1/self.side
         for i in range(0, obj_pred.size(0), self.num):
@@ -333,7 +336,7 @@ class YOLOLoss(nn.Module):
             obj_not_response_mask[i:i+self.num] = 1
             obj_not_response_mask[i+max_index] = 0
 
-            box_label_iou[i+max_index, torch.LongTensor([4])] = max_iou.data.cuda()  # no grad
+            box_label_iou[i+max_index, torch.LongTensor([4])] = max_iou.data  # no grad
 
         box_pred_response = obj_pred[obj_response_mask].view(-1, bbox_size)
         box_label_response_iou = box_label_iou[obj_response_mask].view(-1, bbox_size)
