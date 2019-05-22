@@ -16,8 +16,6 @@
 ## 下载:  
   ```
   git clone https://github.com/Eversee22/yolov1-pytorch.git  
-  cd yolov1-pytorch  
-  git checkout exp1-loss
   ```
 
 ## 检测  

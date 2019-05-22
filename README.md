@@ -16,8 +16,6 @@ Implementation based on YOLOv1 with pytorch, though some differences in backbone
 ## Download:  
   ```
   git clone https://github.com/Eversee22/yolov1-pytorch.git  
-  cd yolov1-pytorch  
-  git checkout exp1-loss
   ```
 
 ## Detection  
