@@ -52,7 +52,7 @@ for year, image_set in sets:
     image_ids = open(VOC_root+'VOCdevkit/VOC%s/ImageSets/Main/%s.txt'%(year, image_set)).read().strip().split()
     list_file = open(out_dir+'%s_%s.txt'%(year, image_set), 'w')
     for image_id in image_ids:
-        list_file.write('%s/VOCdevkit/VOC%s/JPEGImages/%s.jpg\n'%(wd, year, image_id))
+        list_file.write(VOC_root+'VOCdevkit/VOC%s/JPEGImages/%s.jpg\n'%(year, image_id))
         #convert_annotation(year, image_id)
     list_file.close()
 
