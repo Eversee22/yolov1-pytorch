@@ -1,4 +1,4 @@
-side = 7
+side = 14
 num = 2
 classes = 20
 sqrt = 1
@@ -15,5 +15,5 @@ steps = [3, 4]
 lr_scale = [0.1, 0.1]
 num_epochs = 5
 softmax = 0
-downsm = 1
+downsm = 0
 det = 1
