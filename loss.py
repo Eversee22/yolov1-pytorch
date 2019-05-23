@@ -18,7 +18,7 @@ class YOLOLoss(nn.Module):
         self.sqrt = sqrt
         # self.use_gpu = torch.cuda.is_available()
         self.use_gpu = use_gpu
-        self.device = torch.device('cuda:0' if use_gpu else 'cpu')
+        self.device = torch.device('cuda:0')
         if device is not None:
             self.device = device
         self.vis = vis
