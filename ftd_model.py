@@ -12,6 +12,7 @@ num = int(d['num'])
 classes = int(d['classes'])
 softmax = int(d['softmax'])
 downsm = int(d['downsm'])
+det = int(d['det'])
 
 
 class Conv2d_BatchNorm(nn.Module):
@@ -171,7 +172,7 @@ def get_model_ft(name, pretrained=True):
         models.resnet50()
         # downsm = False
         model_ft = mresnet.resnet50(num=num, side=side, num_classes=classes,
-                                    softmax=softmax, detnet_block=not downsm, downsample=downsm)
+                                    softmax=softmax, detnet_block=det, downsample=downsm)
         if pretrained:
             resnet = models.resnet50(pretrained=True)
             org_dict = resnet.state_dict()
