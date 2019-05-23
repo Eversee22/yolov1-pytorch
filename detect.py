@@ -4,7 +4,6 @@ import sys
 import random
 from predict import *
 import eval_voc
-
 # d = readcfg('cfg/yolond')
 # side = int(d['side'])
 # num = int(d['num'])
@@ -16,7 +15,7 @@ def test_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4,
     print('load weight')
     model = load_model(model_name, weight, mode,use_gpu)
     if use_gpu:
-        model.cuda()
+        model.to(gpudevice)
     print("detecting")
     image = cv2.imread(image_name)
     img = prep_image(image, inp_size)
@@ -26,7 +25,7 @@ def test_canvas(model_name, image_name, weight, prob_thresh=0.2, nms_thresh=0.4,
     output = []
     if use_gpu:
         # im_dim = im_dim.cuda()
-        img = img.cuda()
+        img = img.to(gpudevice)
     with torch.no_grad():
         pred = model(img)
     if use_gpu:
@@ -73,7 +72,7 @@ def test_many(model_name,test_file,weight, prob_thresh=0.1, nms_thresh=0.5, mode
     print('load weight')
     model = load_model(model_name, weight, mode, use_gpu)
     if use_gpu:
-        model.cuda()
+        model.to(gpudevice)
     print("detecting")
     images = []
     try:

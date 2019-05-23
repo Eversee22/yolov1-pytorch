@@ -13,7 +13,7 @@ import torch.nn as nn
 # from mmodels import mvgg
 import os
 from visualize import Visualizer
-from adabound import adabound
+#from adabound import adabound
 import argparse
 import sys
 # side = 7
@@ -154,7 +154,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dyn=False):
 
         if s < len(steps) and (epoch+1) == steps[s]:
             print("save {}, step {}, learning rate {}".format(model_name, epoch+1, lr))
-            torch.save({'epoch': epoch, 'lr': lr, 'model': model.state_dict()}, "backup/{}_step_{}.pth".format(model_name, epoch+1))
+            torch.save({'epoch': epoch, 'lr': lr, 'model': model.state_dict()}, backupdir+"{}_step_{}.pth".format(model_name, epoch+1))
             s += 1
 
         # validation
@@ -184,14 +184,14 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dyn=False):
                 print('epoch%d, get best test loss %.5f' % (epoch+1, best_test_loss))
                 if log:
                     logfile.write('epoch[{}/{}], best test loss:{}\n'.format(epoch + 1, num_epochs, best_test_loss))
-                torch.save({'epoch': epoch, 'best_loss':best_test_loss, 'lr': lr, 'model': model.state_dict()}, 'backup/{}_best.pth'.format(model_name))
+                torch.save({'epoch': epoch, 'best_loss':best_test_loss, 'lr': lr, 'model': model.state_dict()}, backupdir+'{}_best.pth'.format(model_name))
 
         if log:
             logfile.flush()
 
     # end
     if num_epochs > 20 or save_final:
-        torch.save({'epoch':num_epochs-1, 'lr':lr, 'model':model.state_dict()}, 'backup/{}_final.pth'.format(model_name))
+        torch.save({'epoch':num_epochs-1, 'lr':lr, 'model':model.state_dict()}, backupdir+'{}_final.pth'.format(model_name))
     time_elapsed = int(time.time() - since)
     h = time_elapsed // 3600
     m = (time_elapsed % 3600) // 60
@@ -260,4 +260,7 @@ scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=steps, gamma=0.1, 
 
 if not os.path.exists('backup'):
     os.mkdir('backup')
+backupdir = 'backup/db07/'
+if not os.path.exists(backupdir):
+        os.mkdir(backupdir)
 train_model(model_ft, criterion, optimizer_ft, scheduler, num_epochs=num_epochs,dyn=False)

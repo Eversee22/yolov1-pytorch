@@ -1,7 +1,7 @@
 import argparse
 import sys
 import numpy as np
-from predict import get_detection_boxes,get_detection_boxes_1,get_pred,load_model,correct_boxes
+from predict import *
 from util import convert_box
 
 
@@ -165,7 +165,7 @@ if __name__ == '__main__':
     print('network successfully loaded')
 
     if CUDA:
-        model.cuda()
+        model.to(gpudevice)
     videofile = args.videofile
     if videofile is None:
         cap = cv2.VideoCapture(0)

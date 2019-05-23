@@ -8,6 +8,7 @@ import time
 import os,sys
 from tqdm import tqdm
 from util import convert_box
+import os
 
 d = readcfg('cfg/yolond')
 side = int(d['side'])
@@ -17,13 +18,16 @@ inp_size = int(d['inp_size'])
 softmax = int(d['softmax'])
 sqrt = int(d['sqrt'])
 voc_class_names = load_classes('data/voc.names')
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+gpudevice = torch.device('cuda:0')
 
 
 def load_model(model_name, weight, mode, use_gpu):
     model = get_model_ft(model_name, False)
     assert model is not None
-    checkpoint = torch.load(weight, map_location=torch.device('cuda:0' if use_gpu else 'cpu'))
+    if use_gpu:
+        checkpoint = torch.load(weight, map_location=gpudevice)
+    else:
+        checkpoint = torch.load(weight, map_location=torch.device('cpu'))
     if mode == 1:
         model_dict = checkpoint['model']
         # for k in model_dict.keys():
@@ -297,11 +301,11 @@ def get_detection_boxes2(pred, prob_thresh, nms_thresh, boxes, probs, nms=True):
 def get_pred_1(image,model_name,weight,mode=1,use_gpu=True):
     model = load_model(model_name, weight, mode,use_gpu)
     if use_gpu:
-        model.cuda()
+        model.to(gpudevice)
     # h, w, _ = image.shape
     img = img_trans(image)
     if use_gpu:
-        img = img.cuda()
+        img = img.to(gpudevice)
     with torch.no_grad():
         pred = model(img)
     if use_gpu:
@@ -315,7 +319,7 @@ def get_pred(image,model,use_gpu=True):
     #     model.cuda()
     img = img_trans(image)
     if use_gpu:
-        img = img.cuda()
+        img = img.to(gpudevice)
     with torch.no_grad():
         pred = model(img)
     if use_gpu:
@@ -484,7 +488,7 @@ def predict_eval_1(preds, model_name, image_name, weight, mode=1, use_gpu=True):
     root_dir = '/home/blacksun2/github/darknet-2016-11-22/VOCdevkit/VOC2007/JPEGImages'
     model = load_model(model_name, weight, mode, use_gpu)
     if use_gpu:
-        model.cuda()
+        model.to(gpudevice)
 
     # if not os.path.exists('results'):
     #     os.mkdir('results')
@@ -525,7 +529,7 @@ def predict_eval(test_file, model_name, weight,use_gpu=True):
 
     model = load_model(model_name, weight, 1,use_gpu)
     if use_gpu:
-        model.cuda()
+        model.to(gpudevice)
     if not os.path.exists('results'):
         os.mkdir('results')
     base = 'results/comp4_det_test'

@@ -2,6 +2,9 @@ import numpy as np
 from util import load_classes
 from predict import predict_eval_1
 from collections import defaultdict
+import os
+#os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 VOC_CLASSES = load_classes('data/voc.names')
 # Color = [[0, 0, 0],
 #                     [128, 0, 0],
