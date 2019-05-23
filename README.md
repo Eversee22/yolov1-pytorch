@@ -46,7 +46,7 @@ Implementation based on YOLOv1 with pytorch, though some differences in backbone
 
     It will save the video in avi format in the `local` directory.
 
-  **Note: By default, the model of ResNet50_14x14 is used. If you use the 7x7 model, you need to change the `yolond` file in the `cfg` directory, and change `side` to 7, `downsm` to 1.**
+  **Note: By default, the model of ResNet50_14x14 is used. If you use the 7x7 model, you need to change the `yolond` file in the `cfg` directory, and change `side` to 7, `downsm` to 1 and `det` to 0.**
 
 ## Training  
   Download the VOC 2007 and VOC 2012 datasets, refer to the following links：  
