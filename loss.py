@@ -67,7 +67,7 @@ class YOLOLoss(nn.Module):
 
         N = preds.size(0)
         bbox_size = self.num * 5
-        cell_size = bbox_size + 20
+        cell_size = bbox_size + class_num
 
         obj_mask = labels[:, :, :, 4] > 0
         noobj_mask = labels[:, :, :, 4] == 0
@@ -163,7 +163,7 @@ class YOLOLoss(nn.Module):
 
         N = preds.size(0)
         bbox_size = self.num * 5
-        cell_size = bbox_size + 20
+        cell_size = bbox_size + class_num
 
         obj_mask = labels[:, :, :, 4] > 0
         noobj_mask = labels[:, :, :, 4] == 0
