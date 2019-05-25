@@ -146,7 +146,7 @@ class YOLOLoss(nn.Module):
         # class loss
         class_loss = F.mse_loss(class_pred, class_label, reduction="sum")
 
-        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+0.5*self.noobj_scale*noobj_loss+class_loss
+        total_loss = self.coord_scale*(xy_loss+wh_loss)+2.*response_loss+not_response_loss+1.0*self.noobj_scale*noobj_loss+class_loss
 
         return total_loss / N
 
@@ -189,7 +189,7 @@ class YOLOLoss(nn.Module):
         noobj_pred_c = noobj_pred[noobj_pred_mask]
         noobj_label_c = noobj_label[noobj_pred_mask]
         noobj_loss = F.mse_loss(noobj_pred_c, noobj_label_c, reduction="sum")
-        noobj_loss *= self.noobj_scale*0.5
+        noobj_loss *= self.noobj_scale
 
         # object containing loss
         obj_response_mask = torch.ByteTensor(box_label.size()).zero_()
