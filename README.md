@@ -3,7 +3,7 @@ Implementation based on YOLOv1 with pytorch, though some differences in backbone
 
 | model(Train on voc2012+2007)|  backbone          | map@voc2007test | FPS(Geforce GTX 1070)  |
 | --------------------        |  ------------      | ----------      | -------   |
-| YOLO                        |  ——                | 63.4% (Paper)   |  45 (Paper)   |
+| YOLO                        |      —             | 63.4% (Paper)   |  45 (Paper)   |
 | YOLO_ResNet50_7x7           |  ResNet50          | 66.8%           |  46   |
 | YOLO_ResNet50_14x14         |  ResNet50 + [DetNet](https://arxiv.org/abs/1804.06215) | 69.5%           |  35   |
 | YOLO_VGG16_7x7              |  VGG16_bn             | 61.8%           |  53   |
